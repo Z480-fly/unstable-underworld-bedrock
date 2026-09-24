@@ -1,0 +1,24 @@
+{
+  "name": "unstable-underworld-bedrock",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Procedural reconstruction of the Unstable SMP Underworld (Underworld Simulator) map as an importable Minecraft Bedrock .mcworld",
+  "scripts": {
+    "build:map": "bun run src/build.ts",
+    "inspect": "bun run src/tools/inspect-world.ts",
+    "typecheck": "tsc -b --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "classic-level": "^3.0.0",
+    "jpeg-js": "^0.4.4",
+    "mcbe-leveldb": "^1.23.0",
+    "prismarine-nbt": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "minecraft-data": "^3.117.0",
+    "typescript": "^5.9.2"
+  }
+}

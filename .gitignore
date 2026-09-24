@@ -1,0 +1,6 @@
+node_modules/
+build/
+*.mcworld
+!dist/*.mcworld
+*.tsbuildinfo
+.DS_Store
