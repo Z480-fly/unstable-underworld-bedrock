@@ -83,15 +83,29 @@ export function pad(
   fill: BlockState = P.cobbledDeepslate,
   edgeRamp = true,
 ): void {
+  // Always force a solid foundation under landmarks so nothing floats or sinks
+  // into the void even if terrain carving was aggressive.
   for (let z = rect.z1 - (edgeRamp ? 4 : 0); z <= rect.z2 + (edgeRamp ? 4 : 0); z++) {
     for (let x = rect.x1 - (edgeRamp ? 4 : 0); x <= rect.x2 + (edgeRamp ? 4 : 0); x++) {
       if (!world.inRealm(x, z)) continue;
       const inside = x >= rect.x1 && x <= rect.x2 && z >= rect.z1 && z <= rect.z2;
-      const surface = world.surfaceAt(x, z);
+      let surface = world.surfaceAt(x, z);
+
+      // If the column was previously void, create a solid pillar up to the pad.
+      if (!world.isLand(x, z) || surface < 8) {
+        surface = Math.max(8, level - 12);
+        for (let y = 0; y <= surface; y++) {
+          world.set(x, y, z, y <= 2 ? P.deepslate : fill);
+        }
+        world.setLand(x, z, true);
+        world.setSurface(x, z, surface);
+      }
+
       if (!inside) {
         // Gentle blend so the pad does not look like a floating slab.
         if (surface < level) {
-          for (let y = surface + 1; y <= Math.min(level - 1, surface + 3); y++) world.set(x, y, z, fill);
+          for (let y = surface + 1; y <= Math.min(level - 1, surface + 4); y++) world.set(x, y, z, fill);
+          world.setSurface(x, z, Math.min(level - 1, surface + 4));
         }
         continue;
       }
@@ -102,6 +116,12 @@ export function pad(
         world.set(x, level, z, top);
       } else {
         world.set(x, level, z, top);
+      }
+      // Thick solid under the pad so nothing can fall through.
+      for (let y = level - 1; y >= Math.max(0, level - 10); y--) {
+        if (!world.get(x, y, z) || world.get(x, y, z)!.name === "minecraft:air") {
+          world.set(x, y, z, fill);
+        }
       }
       world.setSurface(x, z, level);
       world.setLand(x, z, true);
@@ -564,116 +584,47 @@ export function portalFrame(world: World, x: number, y: number, z: number, along
 }
 
 export function lampPost(world: World, x: number, z: number, y: number, light: BlockState, height = 4): void {
-  world.column(x, z, y, y + height, P.darkOakFence);
-  world.set(x, y + height + 1, z, light);
-  world.set(x, y + height, z, P.chain);
+  world.column(x, z, y, y + height - 1, P.darkOakFence);
+  world.set(x, y + height, z, light);
 }
 
 export function cage(world: World, x: number, z: number, y: number, size = 2): void {
-  for (let i = 0; i <= size; i++) {
-    world.set(x + i, y, z, P.ironBars);
-    world.set(x + i, y, z + size, P.ironBars);
-    world.set(x, y, z + i, P.ironBars);
-    world.set(x + size, y, z + i, P.ironBars);
-    world.set(x + i, y + 1, z, P.ironBars);
-    world.set(x + i, y + 1, z + size, P.ironBars);
-    world.set(x, y + 1, z + i, P.ironBars);
-    world.set(x + size, y + 1, z + i, P.ironBars);
-  }
-  world.fill(x, y + size, z, x + size, y + size, z + size, P.ironBars);
-}
-
-/** Labyrinth of tall walls (the crossroads Parrot gets lost in). */
-export function labyrinth(world: World, rect: RectRegion, baseY: number, wallHeight: number, style: BuildStyle, cell = 7): void {
-  const rng = new Rng((rect.x1 * 13 + rect.z1 * 29) ^ 0x777);
-  const width = rect.x2 - rect.x1;
-  const depth = rect.z2 - rect.z1;
-  const cols = Math.floor(width / cell);
-  const rows = Math.floor(depth / cell);
-  const grid: boolean[][] = [];
-  for (let r = 0; r <= rows; r++) {
-    grid[r] = [];
-    for (let c = 0; c <= cols; c++) grid[r]![c] = true;
-  }
-  // Randomised depth-first maze over the cell grid.
-  const visited: boolean[][] = Array.from({ length: rows }, () => new Array(cols).fill(false));
-  const stack: Array<[number, number]> = [[0, 0]];
-  visited[0]![0] = true;
-  while (stack.length) {
-    const [r, c] = stack[stack.length - 1]!;
-    const neighbors: Array<[number, number, number, number]> = [];
-    if (r > 0 && !visited[r - 1]![c]) neighbors.push([r - 1, c, -1, 0]);
-    if (r < rows - 1 && !visited[r + 1]![c]) neighbors.push([r + 1, c, 1, 0]);
-    if (c > 0 && !visited[r]![c - 1]) neighbors.push([r, c - 1, 0, -1]);
-    if (c < cols - 1 && !visited[r]![c + 1]) neighbors.push([r, c + 1, 0, 1]);
-    if (!neighbors.length) {
-      stack.pop();
-      continue;
-    }
-    const [nr, nc, dr, dc] = rng.pick(neighbors);
-    visited[nr]![nc] = true;
-    if (dr !== 0) {
-      const wr = dr > 0 ? r + 1 : r;
-      for (let cc = 0; cc < cell; cc++) grid[wr]![c] = false;
-    } else {
-      const wc = dc > 0 ? c + 1 : c;
-      for (let rr = 0; rr < cell; rr++) grid[r]![wc] = false;
-    }
-    stack.push([nr, nc]);
-  }
-
-  for (let r = 0; r <= rows; r++) {
-    for (let c = 0; c <= cols; c++) {
-      if (!grid[r]![c]) continue;
-      const x0 = rect.x1 + c * cell;
-      const z0 = rect.z1 + r * cell;
-      for (let i = 0; i < cell; i++) {
-        for (let y = baseY; y <= baseY + wallHeight; y++) {
-          world.set(x0 + i, y, z0, y === baseY + wallHeight ? style.trim : style.wall);
-          world.set(x0, y, z0 + i, y === baseY + wallHeight ? style.trim : style.wall);
-        }
+  for (let dz = -size; dz <= size; dz++) {
+    for (let dx = -size; dx <= size; dx++) {
+      const edge = Math.abs(dx) === size || Math.abs(dz) === size;
+      if (edge) {
+        world.set(x + dx, y, z + dz, P.ironBars);
+        world.set(x + dx, y + 1, z + dz, P.ironBars);
+        world.set(x + dx, y + 2, z + dz, P.ironBars);
       }
     }
   }
-  world.fill(rect.x1, baseY, rect.z1, rect.x2, baseY, rect.z2, style.floor);
-  // a few lamps so the maze is navigable on a phone screen
-  for (let r = 2; r < rows; r += 4) {
-    for (let c = 2; c < cols; c += 4) {
-      lampPost(world, rect.x1 + c * cell + 3, rect.z1 + r * cell + 3, baseY + 1, style.light, 3);
-    }
-  }
+  world.set(x, y + 3, z, P.ironBars);
 }
 
-/** Wheat terraces with irrigation channels (The Fields). */
-export function wheatTerraces(world: World, rect: RectRegion, level: number, rows: number): void {
-  const rng = new Rng((rect.x1 * 5 + rect.z1 * 11) ^ 0x3141);
-  const rowHeight = Math.floor((rect.z2 - rect.z1) / rows);
-  for (let r = 0; r < rows; r++) {
-    const z1 = rect.z1 + r * rowHeight;
-    const z2 = r === rows - 1 ? rect.z2 : z1 + rowHeight - 1;
-    const y = level + (rows - 1 - r);
-    for (let z = z1; z <= z2; z++) {
+export function wheatTerraces(world: World, rect: RectRegion, baseY: number, steps = 5): void {
+  const midZ = Math.round((rect.z1 + rect.z2) / 2);
+  for (let s = 0; s < steps; s++) {
+    const y = baseY + s;
+    const z1 = midZ - (steps - s) * 3;
+    const z2 = midZ + (steps - s) * 3;
+    for (let z = Math.max(rect.z1, z1); z <= Math.min(rect.z2, z2); z++) {
       for (let x = rect.x1; x <= rect.x2; x++) {
-        world.setLand(x, z, true);
-        world.setSurface(x, z, y);
-        world.set(x, y, z, P.dryFarmland);
-        if (z === z1) {
-          // irrigation channel between terraces
-          world.set(x, y, z, P.water);
-        } else if (rng.chance(0.9)) {
-          world.set(x, y + 1, z, rng.chance(0.75) ? P.wheat : P.youngWheat);
-        }
+        world.set(x, y, z, P.farmland);
+        if ((x + z + s) % 3 !== 0) world.set(x, y + 1, z, P.wheat);
       }
     }
-    // terrace retaining wall
-    for (let x = rect.x1 - 1; x <= rect.x2 + 1; x++) {
-      world.set(x, y - 1, z1 - 1, P.cobbledDeepslate);
-      world.set(x, y - 2, z1 - 1, P.deepslate);
+  }
+}
+
+export function labyrinth(world: World, cx: number, cz: number, size: number, baseY: number, style: BuildStyle): void {
+  const half = size >> 1;
+  world.rectWalls(cx - half, cz - half, cx + half, cz + half, baseY, baseY + 3, style.wall);
+  for (let z = cz - half + 2; z <= cz + half - 2; z += 4) {
+    for (let x = cx - half + 2; x <= cx + half - 2; x++) {
+      if ((x + z) % 6 < 3) world.set(x, baseY + 1, z, style.wall);
     }
   }
-  // scatter hay bales at the terrace ends
-  for (let r = 0; r < rows; r += 2) {
-    const z = rect.z1 + r * rowHeight;
-    world.set(rect.x1 - 2, level + (rows - 1 - r) + 1, z, P.hayBlock);
-  }
+  world.set(cx, baseY + 1, cz + half, AIR);
+  world.set(cx, baseY + 2, cz + half, AIR);
 }
