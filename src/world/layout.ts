@@ -168,9 +168,10 @@ export type LandmarkId = keyof typeof LANDMARKS;
  * palette darkening as he goes.
  */
 export const VOID_CASTLE_ISLANDS: Array<{ x: number; z: number; radius: number; escapeRoom: string }> = [
-  { x: -71, z: 40, radius: 6, escapeRoom: "redstone lamps & dripstone" },
-  { x: -91, z: 35, radius: 6, escapeRoom: "flooded maze" },
-  { x: -111, z: 44, radius: 6, escapeRoom: "copper bulbs & slime" },
+  // Repositioned to sit cleanly inside the narrowed void gulf (-108..-72).
+  { x: -78, z: 40, radius: 7, escapeRoom: "redstone lamps & dripstone" },
+  { x: -90, z: 36, radius: 7, escapeRoom: "flooded maze" },
+  { x: -102, z: 42, radius: 7, escapeRoom: "copper bulbs & slime" },
 ];
 
 /** Terrain modifiers: each region reshapes the wasteland before it is painted. */
@@ -187,12 +188,14 @@ export interface TerrainRegion {
 
 export const TERRAIN_REGIONS: TerrainRegion[] = [
   // The void gulf west of the Center: nothing but void islands live here.
-  { id: "gulf", shape: { kind: "rect", x1: -118, z1: -192, x2: -66, z2: 191 } },
+  // Kept in sync with CONFIG.terrain.voidGulf so the plate stays continuous.
+  { id: "gulf", shape: { kind: "rect", x1: -110, z1: -192, x2: -70, z2: 191 } },
   // Two great mountains flanking the maze valley (canon: "two large mountains").
-  { id: "mountainNorth", shape: { kind: "circle", x: 104, z: -106, radius: 38 }, heightDelta: 34, relief: 1.6, ridged: true },
-  { id: "mountainEast", shape: { kind: "circle", x: 152, z: -140, radius: 32 }, heightDelta: 27, relief: 1.5, ridged: true },
+  // Height deltas reduced so pads and roads still sit cleanly.
+  { id: "mountainNorth", shape: { kind: "circle", x: 104, z: -106, radius: 34 }, heightDelta: 18, relief: 1.3, ridged: true },
+  { id: "mountainEast", shape: { kind: "circle", x: 152, z: -140, radius: 28 }, heightDelta: 14, relief: 1.25, ridged: true },
   // Lava mountains around the ashen reaches.
-  { id: "lavaMountains", shape: { kind: "rect", x1: 64, z1: 80, x2: 178, z2: 188 }, heightDelta: 8, relief: 1.3, ridged: true },
+  { id: "lavaMountains", shape: { kind: "rect", x1: 64, z1: 80, x2: 178, z2: 188 }, heightDelta: 6, relief: 1.15, ridged: true },
   // The Citadel reach: a raised, flattened plateau that the library stands on.
   { id: "citadelPlateau", shape: { kind: "rect", x1: -192, z1: 0, x2: -112, z2: 82 }, heightDelta: 10, relief: 0.35 },
   // The Pit is sunk into the west reach.
