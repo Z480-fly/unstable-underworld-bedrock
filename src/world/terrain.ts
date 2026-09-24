@@ -39,29 +39,28 @@ export interface Chasm {
  */
 export const CHASMS: Chasm[] = [
   {
+    // Shortened and narrowed so the eastern plate stays walkable and continuous.
     id: "eastFracture",
     points: [
-      { x: 60, z: -192 },
-      { x: 46, z: -120 },
-      { x: 58, z: -50 },
-      { x: 46, z: 40 },
-      { x: 58, z: 110 },
-      { x: 50, z: 191 },
+      { x: 58, z: -160 },
+      { x: 50, z: -80 },
+      { x: 54, z: 0 },
+      { x: 48, z: 80 },
     ],
-    width: 6,
-    wobble: 5,
+    width: 3,
+    wobble: 2,
     toVoid: true,
   },
   {
+    // Narrower northern crack — still atmospheric but no longer severs the map.
     id: "northFracture",
     points: [
-      { x: -122, z: -158 },
-      { x: -60, z: -146 },
-      { x: -10, z: -164 },
-      { x: 60, z: -150 },
+      { x: -90, z: -150 },
+      { x: -30, z: -140 },
+      { x: 30, z: -148 },
     ],
-    width: 5,
-    wobble: 4,
+    width: 3,
+    wobble: 2,
     toVoid: true,
   },
   {
@@ -71,8 +70,8 @@ export const CHASMS: Chasm[] = [
       { x: 164, z: -46 },
       { x: 172, z: -100 },
     ],
-    width: 8,
-    wobble: 4,
+    width: 5,
+    wobble: 2,
     toVoid: false,
   },
   {
@@ -82,8 +81,8 @@ export const CHASMS: Chasm[] = [
       { x: -150, z: 84 },
       { x: -176, z: 70 },
     ],
-    width: 7,
-    wobble: 3,
+    width: 4,
+    wobble: 2,
     toVoid: false,
   },
 ];
@@ -148,8 +147,9 @@ export function sampleColumn(x: number, z: number): ColumnInfo {
   let land = superellipseDistance(x, z, R.realmRadius) + edgeNoise < 1;
 
   // -- the western void gulf -------------------------------------------------
+  // Narrower gulf + less noisy edges so the plate stays more continuous.
   const gulf = R.voidGulf;
-  const gulfEdgeNoise = (fbm(x, z, CONFIG.seed + 13, { octaves: 3, frequency: 1 / 26 }) - 0.5) * 14;
+  const gulfEdgeNoise = (fbm(x, z, CONFIG.seed + 13, { octaves: 3, frequency: 1 / 26 }) - 0.5) * 6;
   if (x + gulfEdgeNoise > gulf.minX && x + gulfEdgeNoise < gulf.maxX) land = false;
 
   // -- chasms ---------------------------------------------------------------
@@ -178,12 +178,12 @@ export function sampleColumn(x: number, z: number): ColumnInfo {
 
   let surfaceY = R.baseHeight + (relief - 0.5) * 2 * amplitude + delta + ridgedBoost;
 
-  // Rim falloff: the plate tapers down as it approaches the void, which is what
-  // creates the "cliff to the void" edges Spoke and Parrot both describe.
+  // Rim falloff: gentle taper so cliffs still exist but the plate doesn't
+  // disintegrate into floating scraps near the edge.
   const edgeFactor = superellipseDistance(x, z, R.realmRadius);
-  if (edgeFactor > 0.86 && land) {
-    const t = Math.min(1, (edgeFactor - 0.86) / 0.14);
-    surfaceY -= t * t * 26;
+  if (edgeFactor > 0.90 && land) {
+    const t = Math.min(1, (edgeFactor - 0.90) / 0.10);
+    surfaceY -= t * t * 14;
   }
 
   // -- canyon carve (ravines keep a floor instead of opening to the void) ----
