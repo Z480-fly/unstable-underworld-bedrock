@@ -54,15 +54,18 @@ export const CONFIG = {
   /** Terrain shaping. */
   terrain: {
     /** Base surface height of the wasteland plain. */
-    baseHeight: 46,
+    baseHeight: 48,
     /** How thick the floating plate is before it tapers into void. */
-    plateDepth: 22,
-    /** Amplitude of rolling wasteland relief. */
-    reliefAmplitude: 6,
-    /** Landmass radius (blocks) of the main realm. */
-    realmRadius: 200,
-    /** The void gulf west of the Center, crossed only by glass bridges. */
-    voidGulf: { minX: -122, maxX: -60 },
+    plateDepth: 24,
+    /** Amplitude of rolling wasteland relief (kept modest so landmarks sit level). */
+    reliefAmplitude: 4,
+    /** Landmass radius (blocks) of the main realm — larger = more continuous plate. */
+    realmRadius: 230,
+    /**
+     * The void gulf west of the Center, crossed only by glass bridges.
+     * Narrowed so the plate stays connected and landmarks don't feel isolated.
+     */
+    voidGulf: { minX: -108, maxX: -72 },
     /** Sky/void darkens toward this edge (canon: "closer to the End"). */
     darkEdgeX: -215,
   },
