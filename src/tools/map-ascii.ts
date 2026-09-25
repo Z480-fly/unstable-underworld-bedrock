@@ -5,20 +5,17 @@
  *   bun run src/tools/map-ascii.ts [columns]
  */
 
-import { buildAllAreas } from "../world/areas.ts";
 import { CONFIG, WORLD_MAX_X, WORLD_MAX_Z, WORLD_MIN_X, WORLD_MIN_Z } from "../world/config.ts";
-import { decorate } from "../world/decorate.ts";
 import { LANDMARKS } from "../world/layout.ts";
-import { buildRoadNetwork } from "../world/roads.ts";
-import { carveChasmWalls, generateTerrain } from "../world/terrain.ts";
-import { World } from "../world/world.ts";
+import { buildSceneWorld } from "../world/scene.ts";
+import type { World } from "../world/world.ts";
 
 const GLYPHS: Record<string, string> = {
   "minecraft:deepslate": "#",
   "minecraft:cobbled_deepslate": "#",
   "minecraft:polished_deepslate": "#",
   "minecraft:tuff": "t",
-  "minecraft:gravel": ",",
+  "minecraft:green_stained_glass": ",",
   "minecraft:stone_bricks": "C",
   "minecraft:dark_oak_planks": "h",
   "minecraft:spruce_planks": "h",
@@ -57,13 +54,7 @@ const GLYPHS: Record<string, string> = {
 };
 
 export function buildWorld(): World {
-  const world = new World();
-  generateTerrain(world);
-  carveChasmWalls(world);
-  buildAllAreas(world);
-  buildRoadNetwork(world);
-  decorate(world);
-  return world;
+  return buildSceneWorld().world;
 }
 
 function glyphFor(world: World, x: number, z: number): string {
@@ -120,7 +111,10 @@ function main(): void {
   for (const line of grid) console.log(`|${line.join("")}|`);
   console.log(`+${"-".repeat(cols)}+`);
   console.log("north = up (-Z) | west = left (-X) | O = landmark centre");
-  console.log("legend: ' 'void  #stone  B blackstone  C castle brick  = road  | glass  G gold  ~ lava  * snow  % fields  L books  s sculk  o obsidian  H iron  X black concrete");
+  console.log(
+    "legend: ' 'void  #stone  , green stained glass (ground)  B blackstone  C castle brick  = road  " +
+      "| glass  G gold  ~ lava  * snow  % fields  L books  s sculk  o obsidian  H iron  X black concrete",
+  );
   console.log("\nlandmarks:");
   for (const landmark of Object.values(LANDMARKS)) {
     console.log(`  ${landmark.name.padEnd(52)} (${landmark.center.x}, ${landmark.center.z})`);

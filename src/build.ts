@@ -14,14 +14,11 @@ import { buildLevelDat } from "./bedrock/leveldat.ts";
 import { serializeSubChunk } from "./bedrock/subchunk.ts";
 import { collectChunkHeights, serializeData2D, serializeData3D } from "./bedrock/data3d.ts";
 import { ZipWriter } from "./bedrock/zip.ts";
-import { buildAllAreas } from "./world/areas.ts";
 import { CONFIG, CHUNKS_X, CHUNKS_Z, REALM } from "./world/config.ts";
-import { decorate } from "./world/decorate.ts";
 import { renderMapImage } from "./world/icon.ts";
 import { SPAWN } from "./world/layout.ts";
-import { buildRoadNetwork } from "./world/roads.ts";
-import { carveChasmWalls, generateTerrain } from "./world/terrain.ts";
-import { World } from "./world/world.ts";
+import { buildSceneWorld } from "./world/scene.ts";
+import type { World } from "./world/world.ts";
 
 interface BuildOptions {
   subChunkVersion: 8 | 9;
@@ -104,22 +101,7 @@ async function main(): Promise<void> {
     console.log(`[${seconds}s] ${message}`);
   };
 
-  log("generating terrain...");
-  const world = new World();
-  const terrainStats = generateTerrain(world);
-  carveChasmWalls(world);
-  log(
-    `terrain done: ${terrainStats.landColumns} land columns, ${terrainStats.voidColumns} void columns, ` +
-      `surface y ${terrainStats.minY}..${terrainStats.maxY}`,
-  );
-
-  log("building landmarks...");
-  buildAllAreas(world);
-
-  log("painting roads...");
-  buildRoadNetwork(world);
-  log("scattering detail...");
-  decorate(world);
+  const { world } = buildSceneWorld(log);
 
   log("rendering map image...");
   const icon = renderMapImage(world, 768);
