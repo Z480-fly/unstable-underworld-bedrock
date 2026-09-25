@@ -179,6 +179,13 @@ export const P = {
   grayGlass: bs("minecraft:gray_stained_glass"),
   blackGlass: bs("minecraft:black_stained_glass"),
   lightBlueGlass: bs("minecraft:light_blue_stained_glass"),
+  /**
+   * Soul Keeper glazing. Canon: "Almost everything is gray or black, with
+   * really the only vibrant color being the green visible on some structures."
+   * That is the *only* place this material is used - it goes in windows on the
+   * Soul Keepers' towers and in the escape rooms, never into the ground.
+   */
+  greenGlass: bs("minecraft:green_stained_glass"),
 
   // --- gold (the legend block) ------------------------------------------------
   goldBlock: bs("minecraft:gold_block"),
@@ -221,3 +228,76 @@ export const P = {
 } as const satisfies Record<string, BlockState>;
 
 export type PaletteKey = keyof typeof P;
+
+// ---------------------------------------------------------------------------
+// Gravity blocks: never written into the world
+// ---------------------------------------------------------------------------
+
+/**
+ * Blocks that *fall* in Bedrock: gravel, sand, red sand and every concrete
+ * powder.
+ *
+ * None of them may appear in the generated world. A falling block in a world
+ * that is placed block-by-block (or that is loaded without a supporting block
+ * under it yet) drops out of the terrain, and in Bedrock it does not always
+ * settle back where it was: it duplicates, leaves holes in the plate and
+ * re-triggers the fall loop, which is the "glitching the game" behaviour on a
+ * phone. Vanilla generation avoids this by never leaving unsupported gravity
+ * blocks; a hand-built map has to simply not use them.
+ */
+export const GRAVITY_BLOCK_NAMES: ReadonlySet<string> = new Set([
+  "minecraft:gravel",
+  "minecraft:sand",
+  "minecraft:red_sand",
+  "minecraft:white_concrete_powder",
+  "minecraft:orange_concrete_powder",
+  "minecraft:magenta_concrete_powder",
+  "minecraft:light_blue_concrete_powder",
+  "minecraft:yellow_concrete_powder",
+  "minecraft:lime_concrete_powder",
+  "minecraft:pink_concrete_powder",
+  "minecraft:gray_concrete_powder",
+  "minecraft:light_gray_concrete_powder",
+  "minecraft:cyan_concrete_powder",
+  "minecraft:purple_concrete_powder",
+  "minecraft:blue_concrete_powder",
+  "minecraft:brown_concrete_powder",
+  "minecraft:green_concrete_powder",
+  "minecraft:red_concrete_powder",
+  "minecraft:black_concrete_powder",
+]);
+
+/**
+ * What each gravity block becomes when it is placed.
+ *
+ * The replacement keeps the *role* of the original block rather than making the
+ * whole map one colour:
+ *
+ *  - **gravel** is the wasteland's ash-grey ground, so it becomes **tuff**, the
+ *    closest grey vanilla texture. Canon: "Almost everything is gray or black".
+ *  - **sand** only ever appears in the void castles' parkour escape room, where
+ *    the bright glazing belongs - it becomes **green stained glass**, the one
+ *    vibrant colour the references mention, and it is on a *structure*.
+ *  - concrete powder is unused, but would read as flat pigment, so it becomes
+ *    grey concrete rather than being left to fall.
+ *
+ * `P.gravel` and `P.sand` stay in the palette as the *intent* of the terrain
+ * code; the substitution happens in this one place so nothing can slip through.
+ */
+const GRAVITY_REPLACEMENTS: ReadonlyMap<string, BlockState> = new Map([
+  ["minecraft:gravel", P.tuff],
+  ["minecraft:sand", P.greenGlass],
+  ["minecraft:red_sand", P.greenGlass],
+  ...([...GRAVITY_BLOCK_NAMES]
+    .filter((name) => name.endsWith("_concrete_powder"))
+    .map((name) => [name, P.grayConcrete] as const)),
+]);
+
+export function isGravityBlock(name: string): boolean {
+  return GRAVITY_BLOCK_NAMES.has(name);
+}
+
+/** Replaces a falling block with its stable stand-in; everything else is returned as is. */
+export function stabilize(block: BlockState): BlockState {
+  return GRAVITY_REPLACEMENTS.get(block.name) ?? block;
+}

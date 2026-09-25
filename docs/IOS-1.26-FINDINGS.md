@@ -123,3 +123,42 @@ void whatever `Generator: 1` means, which matches *"barren wastelands fracture t
   layout, and tags `0x3F` / `0x40` / `0x41` are still unwritten. Neither has a documented payload
   here, so neither is guessed at; both are recorded for whoever reverse-engineers them.
 - Still unverified: whether the rebuilt world renders on the physical iPhone.
+
+---
+
+## The reason the device showed a broken world: subchunk index order
+
+A screen recording from the physical iPhone showed the imported world as horizontal stripes rather
+than the island in `docs/map-preview.jpg`. The cause was not the Data3D stub and not the version
+stamps — it was the subchunk block index order.
+
+* Bedrock: `index = (x << 8) | (z << 4) | y` — XZY, **Y fastest**.
+* This generator's buffers: `index = x + (z << 4) + (y << 8)` — **Y major**, so a subchunk is 4096
+  consecutive `Uint16Array` entries.
+
+`ChunkBuffer.subChunkSlice()` copied the buffer into the payload unchanged, which swapped X and Y:
+the file's index bits were `[y][z][x]` where Bedrock reads `[x][z][y]`. Columns became rows.
+
+What this does **not** break, and therefore why it survived every check: the ZIP, the LevelDB keys,
+`level.dat`, `FinalizedState`, `Data3D`, the palette and the payload parser all stay valid. A
+transposed world is a perfectly well-formed Bedrock world that happens to contain the wrong terrain.
+Confirming the diagnosis from this environment needed a generator-aware check rather than a
+format-aware one.
+
+`bun run inspect` now performs that check: it regenerates the scene and compares all 2 275 subchunks
+against the written payloads block by block, indexing the payload Bedrock's way. Any future
+transposition (or offset, or dropped block) fails the build instead of reaching a device.
+
+Two side notes from the same session, both now enforced in code:
+
+* **Gravity blocks are excluded from the world entirely.** `minecraft:gravel` was 5.9 % of all
+  blocks; gravel, sand and concrete powder fall in Bedrock and, in a map placed block by block,
+  fall out of the terrain and glitch the client. `stabilize()` in `src/world/blocks.ts` swaps them
+  for `minecraft:green_stained_glass` at write time, and the inspector rejects any that appear.
+* **The landmark audit** (`bun run audit`) fingerprints each of the fourteen landmarks by a block
+  only it places. It scans the full footprint volume, because the tomb and the crypt rooms are
+  *below* the ground and the levelled pads are flush with it.
+
+The Data3D gap described above (uniform biome, ~637 bytes instead of ~5 KB) is still open, and it is
+still unknown whether the client accepts it in place. It is no longer the leading suspect for the
+broken rendering, though, since it cannot rotate a world 90°.

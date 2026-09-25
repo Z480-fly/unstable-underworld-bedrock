@@ -19,7 +19,7 @@ The generated world ships with the repository:
 
 | File | Description |
 | --- | --- |
-| `dist/Underworld-Simulator-Remastered.mcworld` | Importable Bedrock world (~1.6 MB) |
+| `dist/Underworld-Simulator-Remastered.mcworld` | Importable Bedrock world (~1.7 MB) |
 | `docs/map-preview.jpg` | Top-down render of the realm (also used as the world icon) |
 
 **Importing on iPhone / iPad**
@@ -109,8 +109,56 @@ into nothing at its edges. North is `-Z`, east is `+X`.
   crying obsidian, sculk, more black concrete) — the "darker toward the End" gradient.
 
 Atmosphere is entirely block-built: soul lanterns and soul fire, crying obsidian, sculk, soul
-sand/soil flats, gravel and ash, obsidian cairns along the void rim, grave lanterns, and a
-permanently dark sky (`Time 18000`, `dodaylightcycle 0`). Nothing else was added.
+sand/soil flats, obsidian cairns along the void rim, grave lanterns, and a permanently dark sky
+(`Time 18000`, `dodaylightcycle 0`). Nothing else was added.
+
+### The wasteland between the set pieces
+
+Two things the references describe as defining the place, and which the map therefore spends the
+most effort on:
+
+* **"An endless plain of broken structures."** The detail pass (`src/world/decorate.ts`) covers every
+  stretch of wilderness with half-buried masonry - wall stubs eroded to nothing at both ends, ruined
+  tower stumps tall on one side and collapsed on the other, fallen columns, rubble fields and broken
+  gate frames with the span fallen in. **About 8.7 % of the plain now carries standing ruin**
+  (`bun run audit` prints the figure). It is deliberately excluded from landmark footprints and from
+  protected pads and roads, so it can never grow through a building or cut a path.
+
+  The pass (and `bun run audit` with it) spans the **whole realm**. It did not always: every detail
+  loop used to stop on a tidy ±190 square while the plate reaches ±220, so a 30-block band around
+  the entire edge - 23 663 walkable columns - carried no ruin, no boulders and no cracks at all,
+  exactly where the references put the most broken ground. A test now holds detail coverage on the
+  outer band, not just the middle.
+* **"Cracks of void forming on the ground", "sometimes these barren wastelands fracture to void."**
+  A second pass carves long, thin, wandering fractures into the plate. Half of them are shallow
+  seams floored with magma and obsidian; the other half tear **clean through the plate and open onto
+  the void** - 45 of the 512 × 512 columns are a hole you can drop through, 1-2 blocks across and
+  edged with obsidian and crying obsidian so the break reads as torn rock rather than a clean cut.
+  A crack is *walked* across the plate and then carved, skipping the cells it must not cut, so it
+  crosses the map instead of stopping at the first paved road; whatever it opens is marked void and
+  protected so no later pass tries to build on thin air.
+* **The rim sheds.** The plate does not end in a clean cut. Just clear of the edge, chunks of the
+  plate's own rock drift in the void, and teeth of obsidian (with the odd crying-obsidian tip) hang
+  off the torn underside - the same "fracture to void" seen from the void side, so the realm reads
+  as an island coming apart rather than a floating rectangle with a tidy border.
+
+### No falling blocks, and where the green went
+
+The palette splits the way the sources do - *"almost everything is gray or black, with really the
+only vibrant color being the green visible on some structures"*:
+
+* the **ground is gray and black**: deepslate (52 %), tuff (21 %, the old gravel shading), blackstone,
+  basalt, cobbled deepslate, obsidian, soul sand/soil;
+* the **green is green stained glass, and it is on structures** - the Soul Keepers' tower windows at
+  the Breach, the Withered Castle's corner towers, the Citadel, the void castles, the Portal Lobby
+  guard posts, and the parkour course in the void castles' escape room.
+
+Gravel, sand and concrete powder are Bedrock's *gravity* blocks: in a world placed block-by-block
+they drop out of the terrain, leave holes in the plate and re-trigger the fall loop, which is what
+makes a hand-built map glitch and stutter on a phone. `stabilize()` in `src/world/blocks.ts`
+substitutes them at the single point every voxel write passes through - gravel becomes tuff (the
+ash-grey ground), sand becomes the green glazing - so no builder can put one in the world by
+accident, and `bun run inspect` fails the build if one ever reaches a subchunk palette.
 
 ---
 
@@ -149,11 +197,19 @@ Target: **Bedrock 1.26.51** (confirmed against Mojang's own block list as shippe
   `SubChunkPrefix 0x2F` records for the subchunks that actually contain blocks.
 * **Subchunks** — version **9** payload (1.18+): `version, layerCount, subChunkIndex`, then one
   NBT-paletted storage layer (`bitsPerBlock << 1`, packed 32-bit words, palette of
-  `{name, states, version}` compounds). Indices are in Bedrock's XZY order. Block state names were
-  checked against Bedrock 1.26.51 — including the flattened IDs (`stone_bricks`, `iron_chain`).
-* **Mobile performance** — 745 chunks have content and ~2 275 subchunks are stored (average
+  `{name, states, version}` compounds). Block state names were checked against Bedrock 1.26.51 —
+  including the flattened IDs (`stone_bricks`, `iron_chain`).
+* **Subchunk index order** — Bedrock indexes a subchunk **XZY, Y fastest**: the block at
+  `(x, y, z)` lives at `(x << 8) | (z << 4) | y`. The generator's own buffers are laid out Y-major
+  so that a subchunk is 4096 consecutive entries, which is *not* the same order; `subChunkSlice()`
+  transposes while it copies. This is worth calling out because writing the buffer order into the
+  payload looks completely harmless — the payload still parses, the palette is still valid — and the
+  only symptom is that the imported world is striped with the X and Y axes swapped. `bun run inspect`
+  now compares all 2 386 subchunks against a freshly regenerated scene block by block, indexed
+  Bedrock's way, so the two can never drift apart again.
+* **Mobile performance** — 756 chunks have content and ~2 386 subchunks are stored (average
   payload 2.4 KB), subchunks below/above the plate are omitted entirely, there are no block
-  entities, no entities, no ticking systems and no mobs. The whole world is ~1.6 MB, which loads
+  entities, no entities, no ticking systems and no mobs. The whole world is ~1.7 MB, which loads
   quickly and keeps memory low on a phone.
 
 If a device ever renders the terrain incorrectly, the serializer has a documented escape hatch:
@@ -170,9 +226,10 @@ bun install
 bun run build:map        # generate dist/*.mcworld + docs/map-preview.jpg  (~2 s)
 bun run inspect          # read the world back: keys, subchunk round-trip, level.dat, zip
 bun run typecheck        # tsc -b --noEmit
-bun test                 # 16 tests: serializer, zip, palette, terrain, level.dat
+bun test                 # 21 tests: serializer, zip, palette, terrain, landmarks, level.dat
 bun run validate         # every block state vs Bedrock 1.26.51
 bun run map              # ASCII map of the realm for layout checks
+bun run audit            # per-landmark audit: did each one actually build something?
 bun run check            # the whole gate: typecheck + test + validate + build + inspect
 ```
 
@@ -190,9 +247,10 @@ src/bedrock/    Bedrock file formats: NBT writer, subchunk serializer, Data3D/Da
 src/world/      config.ts (seed, realm, versions)  layout.ts (landmark coordinates, roads,
                 terrain regions)  terrain.ts (heightfield, chasms, lava lake)  structures.ts
                 (towers, curtain walls, keeps, bridges, glass bridges, mazes, terraces)
-                areas.ts (the fourteen landmarks)  roads.ts  decorate.ts  icon.ts  world.ts
-                (voxel buffer + painting primitives)
-src/tools/      inspect-world.ts, map-ascii.ts, validate-palette.ts
+                areas.ts (the fourteen landmarks)  roads.ts  decorate.ts  icon.ts
+                scene.ts (the generation pipeline, in order)  world.ts (voxel buffer + painting
+                primitives)
+src/tools/      inspect-world.ts, map-ascii.ts, landmark-audit.ts, validate-palette.ts
 src/build.ts    orchestrator
 ```
 
@@ -219,10 +277,19 @@ Verified programmatically on every build:
 * `level.dat` parses back with the expected values, and the spawn point is on solid ground;
 * the LevelDB contains `Version` + `FinalizedState` + `Data3D` for all 1 024 realm chunks and
   only non-empty subchunks besides;
-* terrain generation is deterministic and every landmark lands on solid ground.
+* regenerating the scene reproduces every one of the 2 386 written subchunks block for block, with
+  the payload read back in Bedrock's own XZY index order — so no written block is rotated, offset or
+  dropped on the way from the generator into the file;
+* not a single gravity block (gravel, sand, concrete powder) reached the world, checked in every
+  subchunk palette;
+* terrain generation is deterministic, every landmark lands on solid ground, and every one of the
+  fourteen landmarks places its signature geometry (`bun run audit` prints the counts);
+* the plate is actually torn: 45 columns open through it into the void, the rim hangs masonry into
+  the void beside it, and the outer band of the plate carries the same density of ruin as the middle
+  (all three are asserted in `bun test`, because all three were quietly false before).
 
 `bun run inspect` is a real gate, not a diagnostic: it collects every problem it finds and exits
-non-zero if there was any (23 checks on a healthy build). CI runs it on each push.
+non-zero if there was any (26 checks on a healthy build). CI runs it on each push.
 
 Not verifiable here (no Minecraft client in this environment): the final in-game look, and
 whether a specific device build accepts the modern subchunk payload. The Data3D biome payload is

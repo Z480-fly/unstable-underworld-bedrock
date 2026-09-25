@@ -20,7 +20,14 @@
  *
  * A layer with a single palette entry is written as `bitsPerBlock = 0`, which
  * means "uniform" and is followed by exactly one palette entry and no words.
- * Block indices inside a subchunk are ordered XZY: index = x + 16 * z + 256 * y.
+ *
+ * Block indices inside a subchunk are ordered XZY with **Y fastest**: the block
+ * at `(x, y, z)` sits at `(x << 8) | (z << 4) | y`. Note that this is *not* the
+ * layout the generator's chunk buffers use (they are Y-major, so that a
+ * subchunk is one contiguous run of 4096 entries); `ChunkBuffer.subChunkSlice()`
+ * transposes into this order before calling `serializeSubChunk`. Handing this
+ * function a Y-major array swaps X and Y and the imported world comes out as
+ * stripes of terrain.
  */
 
 import type { BlockState } from "../world/blocks.ts";

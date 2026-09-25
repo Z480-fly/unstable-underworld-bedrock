@@ -9,6 +9,7 @@
     "inspect": "bun run src/tools/inspect-world.ts",
     "validate": "bun run src/tools/validate-palette.ts",
     "map": "bun run src/tools/map-ascii.ts",
+    "audit": "bun run src/tools/landmark-audit.ts",
     "typecheck": "tsc -b --noEmit",
     "test": "bun test",
     "check": "bun run typecheck && bun test && bun run validate && bun run build:map && bun run inspect"

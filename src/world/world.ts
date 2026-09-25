@@ -2,12 +2,17 @@
  * The voxel buffer the whole map is painted into.
  *
  * Storage is per chunk: a `Uint16Array` of palette indices plus that chunk's
- * palette. Indices are stored in the same XZY order Bedrock uses inside a
- * subchunk (`x + 16 * z + 256 * y`), so serialising a subchunk is a straight
- * copy of 4096 consecutive entries.
+ * palette. The buffer is laid out Y-major (`x + 16 * z + 256 * y`) so that a
+ * subchunk is 4096 *consecutive* entries, which keeps the painting passes fast.
+ *
+ * That is NOT the order Bedrock stores a subchunk layer in. Bedrock walks a
+ * subchunk XZY (Y fastest): index = `(x << 8) | (z << 4) | y`. Writing the
+ * buffer layout straight into the payload silently swaps the X and Y axes, and
+ * the imported world comes out as horizontal stripes of terrain instead of the
+ * intended island. `subChunkSlice` therefore transposes while it copies.
  */
 
-import { AIR, blockKey, type BlockState } from "./blocks.ts";
+import { AIR, blockKey, stabilize, type BlockState } from "./blocks.ts";
 import { CHUNKS_X, CHUNKS_Z, GRID_SIZE, WORLD_HEIGHT, WORLD_MIN_X, WORLD_MIN_Z } from "./config.ts";
 
 export const SUB = 16;
@@ -40,9 +45,15 @@ export class ChunkBuffer {
     return id;
   }
 
-  /** localX/localZ 0..15, localY 0..WORLD_HEIGHT-1 */
+  /**
+   * localX/localZ 0..15, localY 0..WORLD_HEIGHT-1.
+   *
+   * Every write goes through `stabilize`, which is what guarantees the finished
+   * world contains no gravity blocks (see blocks.ts): a falling block in an
+   * imported Bedrock world drops out of the terrain and shreds the landscape.
+   */
   setLocal(localX: number, localY: number, localZ: number, block: BlockState): void {
-    this.ids[localX + (localZ << 4) + (localY << 8)] = this.idFor(block);
+    this.ids[localX + (localZ << 4) + (localY << 8)] = this.idFor(stabilize(block));
   }
 
   getLocal(localX: number, localY: number, localZ: number): BlockState | undefined {
@@ -65,25 +76,36 @@ export class ChunkBuffer {
     return true;
   }
 
-  /** Palette indices for a 16x16x16 subchunk, remapped to a fresh palette. */
+  /**
+   * Palette indices for a 16x16x16 subchunk, remapped to a fresh palette and
+   * reordered into Bedrock's XZY layout (`(x << 8) | (z << 4) | y`).
+   *
+   * The outer loop runs over the destination index so `ids` comes out in the
+   * exact order the subchunk serializer must pack, and the source lookup uses
+   * this buffer's Y-major layout.
+   */
   subChunkSlice(subY: number): { ids: Uint16Array; palette: BlockState[] } {
     const start = subY * SUB_VOLUME;
     const ids = new Uint16Array(SUB_VOLUME);
     const palette: BlockState[] = [];
     const remap = new Map<number, number>();
-    for (let i = 0; i < SUB_VOLUME; i++) {
-      const id = this.ids[start + i]!;
-      let mapped = remap.get(id);
-      if (mapped === undefined) {
-        mapped = palette.length;
-        palette.push(this.palette[id] ?? AIR);
-        remap.set(id, mapped);
+    const used = new Set<number>();
+    for (let y = 0; y < SUB; y++) {
+      for (let z = 0; z < SUB; z++) {
+        for (let x = 0; x < SUB; x++) {
+          const id = this.ids[start + x + (z << 4) + (y << 8)]!;
+          let mapped = remap.get(id);
+          if (mapped === undefined) {
+            mapped = palette.length;
+            palette.push(this.palette[id] ?? AIR);
+            remap.set(id, mapped);
+            used.add(mapped);
+          }
+          ids[(x << 8) | (z << 4) | y] = mapped;
+        }
       }
-      ids[i] = mapped;
     }
     // Keep the palette tight: drop entries that are never referenced.
-    const used = new Set<number>();
-    for (let i = 0; i < SUB_VOLUME; i++) used.add(ids[i]!);
     if (used.size !== palette.length) {
       const compact: BlockState[] = [];
       const compactMap = new Map<number, number>();

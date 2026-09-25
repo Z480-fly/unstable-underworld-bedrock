@@ -38,6 +38,27 @@ function rect(x1: number, z1: number, x2: number, z2: number): RectRegion {
   return { kind: "rect", x1, z1, x2, z2 };
 }
 
+/**
+ * Soul Keeper glazing: one ring of green stained glass windows around a tower.
+ *
+ * Canon splits the palette in two - "almost everything is gray or black", plus
+ * "the green visible on some structures" - so the green belongs here, in the
+ * Soul Keepers' windows, and nowhere in the terrain. This is the only place
+ * `P.greenGlass` is placed deliberately (the escape rooms' parkour course gets
+ * it through the gravity-block substitution in blocks.ts).
+ */
+function greenGlazing(world: World, cx: number, cz: number, radius: number, y: number): void {
+  for (const [dx, dz] of [
+    [0, -radius],
+    [0, radius],
+    [-radius, 0],
+    [radius, 0],
+  ] as const) {
+    world.set(cx + dx, y, cz + dz, P.greenGlass);
+    world.set(cx + dx, y + 1, cz + dz, P.greenGlass);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 1. The Breach - where Wemmbu and Boosfer fell in (spawn)
 // ---------------------------------------------------------------------------
@@ -87,6 +108,10 @@ export function buildBreach(world: World): void {
   ]);
   tower(world, cx + 20, cz + 12, 4, level, 16, style, { round: true, crown: true });
   tower(world, cx + 36, cz + 12, 4, level, 16, style, { round: true, crown: true });
+  greenGlazing(world, cx + 20, cz + 12, 4, level + 6);
+  greenGlazing(world, cx + 36, cz + 12, 4, level + 6);
+  greenGlazing(world, cx + 20, cz + 12, 4, level + 12);
+  greenGlazing(world, cx + 36, cz + 12, 4, level + 12);
   house(world, cx + 28, cz + 6, 9, 7, level, 5, style, { face: 2 });
   // cages in front of the breach, exactly as Wemmbu found them
   const cages: Array<[number, number]> = [
@@ -128,6 +153,9 @@ export function buildCenter(world: World): void {
   for (const sx of [-50, 50]) {
     for (const sz of [-44, 44]) {
       tower(world, cx + sx, cz + sz, 5, level, 24, style, { round: true, crown: true });
+      // Soul Keeper glazing, placed after the tower so it survives.
+      greenGlazing(world, cx + sx, cz + sz, 5, level + 7);
+      greenGlazing(world, cx + sx, cz + sz, 5, level + 17);
     }
   }
   gatehouse(world, cx, cz + 44, level, style, 2, { open: true, height: 11 });
@@ -281,6 +309,8 @@ export function buildCitadel(world: World): void {
   for (const sx of [-29, 29]) {
     for (const sz of [-29, 29]) {
       tower(world, cx + sx, cz + sz, 5, level, 30, style, { round: true, crown: true });
+      greenGlazing(world, cx + sx, cz + sz, 5, level + 9);
+      greenGlazing(world, cx + sx, cz + sz, 5, level + 21);
     }
   }
   gatehouse(world, cx + 29, cz, level, style, 0, { open: true, height: 13 });
@@ -446,6 +476,10 @@ export function buildVoidCastles(world: World): void {
     world.disc(island.x, island.z, half, top, P.polishedBlackstone);
     tower(world, island.x - half, island.z - half, 3, top, 16, style, { round: true, crown: true });
     tower(world, island.x + half, island.z + half, 3, top, 16, style, { round: true, crown: true });
+    greenGlazing(world, island.x - half, island.z - half, 3, top + 7);
+    greenGlazing(world, island.x - half, island.z - half, 3, top + 12);
+    greenGlazing(world, island.x + half, island.z + half, 3, top + 7);
+    greenGlazing(world, island.x + half, island.z + half, 3, top + 12);
     // gate facing east (towards the Center) and west (towards the Citadel)
     world.fill(island.x + half - 1, top + 1, island.z - 1, island.x + half + 1, top + 3, island.z + 1, AIR);
     world.fill(island.x - half - 1, top + 1, island.z - 1, island.x - half + 1, top + 3, island.z + 1, AIR);
@@ -969,9 +1003,11 @@ export function buildPortalLobby(world: World): void {
   for (let i = 0; i < 6; i++) {
     lampPost(world, cx - 20 + i * 8, cz, level + 1, style.light, 4);
   }
-  // Soul Keeper guard posts flanking the door.
+  // Soul Keeper guard posts flanking the door, glazed in their house green.
   for (const sz of [-16, 16]) {
     tower(world, cx, cz + sz, 4, level, 14, style, { round: true, crown: true });
+    greenGlazing(world, cx, cz + sz, 4, level + 5);
+    greenGlazing(world, cx, cz + sz, 4, level + 11);
   }
 }
 
