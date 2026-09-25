@@ -95,6 +95,16 @@ export class BedrockWorldDb {
     await this.put(chunkKey(chunkX, chunkZ, dimension, CHUNK_TAG.SubChunkPrefix, subChunkIndex), value);
   }
 
+  /** Heightmap + 3D biome palettes (required by Bedrock 1.18+ / 1.26). */
+  async putData3D(chunkX: number, chunkZ: number, value: Buffer, dimension = 0): Promise<void> {
+    await this.put(chunkKey(chunkX, chunkZ, dimension, CHUNK_TAG.Data3D), value);
+  }
+
+  /** Legacy heightmap + 2D biomes (extra compatibility for older loaders). */
+  async putData2D(chunkX: number, chunkZ: number, value: Buffer, dimension = 0): Promise<void> {
+    await this.put(chunkKey(chunkX, chunkZ, dimension, CHUNK_TAG.Data2D), value);
+  }
+
   /**
    * Flush the write-ahead log into sorted table (`*.ldb`) files. Without this a
    * freshly built database can leave everything in `db/00000x.log`, which is
