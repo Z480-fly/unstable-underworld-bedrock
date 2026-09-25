@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { CHUNK_TAG, BedrockWorldDb } from "./bedrock/world-writer.ts";
 import { buildLevelDat } from "./bedrock/leveldat.ts";
 import { serializeSubChunk } from "./bedrock/subchunk.ts";
+import { collectChunkHeights, serializeData2D, serializeData3D } from "./bedrock/data3d.ts";
 import { ZipWriter } from "./bedrock/zip.ts";
 import { buildAllAreas } from "./world/areas.ts";
 import { CONFIG, CHUNKS_X, CHUNKS_Z, REALM } from "./world/config.ts";
@@ -62,10 +63,6 @@ async function listFilesRecursive(directory: string, prefix = ""): Promise<Array
   return files;
 }
 
-/**
- * Finds a safe spawn near the requested point: solid ground with two blocks of
- * clear air above, so the player never loads inside the bedrock spire.
- */
 function findSafeSpawn(world: World): { x: number; y: number; z: number } {
   const baseX = Math.floor(SPAWN.x);
   const baseZ = Math.floor(SPAWN.z);
@@ -107,7 +104,6 @@ async function main(): Promise<void> {
     console.log(`[${seconds}s] ${message}`);
   };
 
-  // --- terrain -------------------------------------------------------------
   log("generating terrain...");
   const world = new World();
   const terrainStats = generateTerrain(world);
@@ -117,22 +113,18 @@ async function main(): Promise<void> {
       `surface y ${terrainStats.minY}..${terrainStats.maxY}`,
   );
 
-  // --- landmarks -----------------------------------------------------------
   log("building landmarks...");
   buildAllAreas(world);
 
-  // --- roads + decoration --------------------------------------------------
   log("painting roads...");
   buildRoadNetwork(world);
   log("scattering detail...");
   decorate(world);
 
-  // --- world icon ---------------------------------------------------------
   log("rendering map image...");
   const icon = renderMapImage(world, 768);
   await writeFile(join(process.cwd(), "docs", "map-preview.jpg"), icon);
 
-  // --- level.dat ----------------------------------------------------------
   const spawn = findSafeSpawn(world);
   const levelDat = buildLevelDat({
     levelName: options.worldName,
@@ -143,17 +135,26 @@ async function main(): Promise<void> {
   await writeFile(join(worldDir, "levelname.txt"), options.worldName, "utf8");
   await writeFile(join(worldDir, "world_icon.jpeg"), icon);
 
-  // --- chunks --------------------------------------------------------------
   log("writing chunks to LevelDB...");
   const db = await BedrockWorldDb.open(join(worldDir, "db"));
   let chunkCount = 0;
   let subChunkCount = 0;
   const subChunkLevels = CONFIG.maxY >> 4;
 
+  let data3dCount = 0;
   for (const chunk of world.allChunks()) {
     chunkCount++;
     await db.putChunkVersion(chunk.cx, chunk.cz, CONFIG.chunkVersion);
     await db.putFinalizedState(chunk.cx, chunk.cz, 2);
+    const heights = collectChunkHeights(
+      (x, z) => world.surfaceAt(x, z),
+      (x, z) => world.isLand(x, z),
+      chunk.cx,
+      chunk.cz,
+    );
+    await db.putData3D(chunk.cx, chunk.cz, serializeData3D(heights));
+    await db.putData2D(chunk.cx, chunk.cz, serializeData2D(heights));
+    data3dCount++;
     for (let subY = 0; subY <= subChunkLevels; subY++) {
       if (chunk.isSubChunkEmpty(subY)) continue;
       const slice = chunk.subChunkSlice(subY);
@@ -166,23 +167,29 @@ async function main(): Promise<void> {
     }
   }
 
-  // Mark every chunk of the realm as versioned/finalised, even the pure void
-  // ones, so the game never generates anything inside the realm.
   for (let cx = REALM.minChunkX; cx <= REALM.maxChunkX; cx++) {
     for (let cz = REALM.minChunkZ; cz <= REALM.maxChunkZ; cz++) {
       if (world.chunk(cx, cz)) continue;
       await db.putChunkVersion(cx, cz, CONFIG.chunkVersion);
       await db.putFinalizedState(cx, cz, 2);
+      const heights = collectChunkHeights(
+        (x, z) => world.surfaceAt(x, z),
+        (x, z) => world.isLand(x, z),
+        cx,
+        cz,
+      );
+      await db.putData3D(cx, cz, serializeData3D(heights));
+      await db.putData2D(cx, cz, serializeData2D(heights));
+      data3dCount++;
     }
   }
+  log(`wrote Data3D/Data2D for ${data3dCount} chunks`);
 
-  // Flat-layer override in the DB as well as level.dat.
   await db.put(Buffer.from("game_flatworldlayers", "utf8"), Buffer.from("[]", "utf8"));
   await db.compactAll();
   await db.close();
   log(`wrote ${chunkCount} chunks (${subChunkCount} subchunks) over ${CHUNKS_X}x${CHUNKS_Z} chunks`);
 
-  // --- package -------------------------------------------------------------
   if (!options.zip) {
     log("done (no zip requested)");
     return;
