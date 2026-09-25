@@ -204,9 +204,20 @@ function inCircle(x: number, z: number, cx: number, cz: number, radius: number):
   return dx * dx + dz * dz <= radius * radius;
 }
 
-/** How dark the wasteland gets toward the dark edge (canon: darkest near the End). */
-function darkness(x: number): number {
-  const t = (R.darkEdgeX - x) / 40; // 0 at the gulf, 1 at the far west
+/**
+ * How dark the wasteland gets toward the dark edge.
+ *
+ * Canon: "the sky and void grow increasingly darker as the proximity to the end
+ * shortens." The gradient therefore covers the *whole* western reach - it opens
+ * west of the Center, is plainly black over the void castles, and is at its
+ * darkest beyond the Citadel - instead of only the last sliver of rim. The
+ * value is 0 everywhere east of `darkEdgeStartX` and 1 at `darkEdgeX`.
+ *
+ * Exported because the ruin masonry darkens with it: the broken structures out
+ * west are built from the same black rock the ground there is made of.
+ */
+export function darkness(x: number): number {
+  const t = (R.darkEdgeStartX - x) / (R.darkEdgeStartX - R.darkEdgeX);
   return Math.max(0, Math.min(1, t));
 }
 

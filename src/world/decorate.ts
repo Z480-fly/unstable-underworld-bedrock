@@ -25,12 +25,18 @@ import { AIR, P, type BlockState } from "./blocks.ts";
 import { CONFIG, WORLD_MAX_X, WORLD_MAX_Z, WORLD_MIN_X, WORLD_MIN_Z } from "./config.ts";
 import { LANDMARKS } from "./layout.ts";
 import { hash2, Rng } from "./noise.ts";
+import { darkness } from "./terrain.ts";
 import type { World } from "./world.ts";
 
-/** Masonry for ruins, darkening toward the west exactly like the terrain does. */
+/**
+ * Masonry for ruins, darkening toward the west exactly like the terrain does.
+ * The switch is probabilistic rather than a hard line at x=-60: a ruin this far
+ * west is as likely to be black stone as the surrounding ground is dark, so the
+ * change of material reads as a gradient and not as a seam.
+ */
 function ruinMasonry(x: number, z: number): BlockState[] {
   const n = hash2(x, z, CONFIG.seed + 920);
-  const west = x < -60;
+  const west = hash2(x, z, CONFIG.seed + 921) < darkness(x);
   if (west) {
     return n < 0.4
       ? [P.blackstoneBricks, P.crackedBlackstoneBricks]
