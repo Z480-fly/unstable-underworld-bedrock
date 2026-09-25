@@ -1,13 +1,16 @@
 /**
- * Verifier. Reads the freshly written Bedrock world back from disk and checks
- * that it is structurally what Bedrock expects:
+ * Verifier and CI gate. Reads the freshly written Bedrock world back from disk
+ * and checks that it is structurally what Bedrock expects:
  *
  *  - every LevelDB key has a legal shape (chunk key lengths, tag bytes)
- *  - every subchunk value is what the reference parser expects (this uses
- *    `mcbe-leveldb`, the TypeScript implementation cited on the Minecraft Wiki,
- *    to parse our own payloads)
+ *  - every subchunk payload round-trips through the reference parser
+ *    (`mcbe-leveldb`, the TypeScript implementation cited on the Minecraft Wiki)
  *  - level.dat parses back and carries the values we set
  *  - the `.mcworld` ZIP contains the required entries
+ *
+ * Collects every problem it finds and exits non-zero if there were any, so this
+ * doubles as the CI gate that proves a build is importable rather than merely
+ * "the script didn't crash".
  *
  *   bun run src/tools/inspect-world.ts [path-to.mcworld]
  */
@@ -24,6 +27,12 @@ const TAG_NAMES: Record<number, string> = Object.fromEntries(
   Object.entries(CHUNK_TAG).map(([name, tag]) => [tag, name]),
 );
 
+/** Chunk key lengths: overworld (9/10) and nether+end (13/14). */
+const CHUNK_KEY_LENGTHS = new Set([9, 10, 13, 14]);
+
+/** subchunk y indices actually used only go up to 7 for a 128-tall world. */
+const MAX_SUBCHUNK_INDEX = 7;
+
 interface KeyInfo {
   cx: number;
   cz: number;
@@ -32,8 +41,32 @@ interface KeyInfo {
   subChunkIndex?: number;
 }
 
+interface Failure {
+  area: string;
+  detail: string;
+}
+
+interface Report {
+  failures: Failure[];
+  checks: number;
+}
+
+function newReport(): Report {
+  return { failures: [], checks: 0 };
+}
+
+function fail(report: Report, area: string, detail: string): void {
+  report.failures.push({ area, detail });
+}
+
+function check(report: Report, condition: boolean, area: string, detail: string): boolean {
+  report.checks++;
+  if (!condition) fail(report, area, detail);
+  return condition;
+}
+
 function decodeChunkKey(key: Buffer): KeyInfo | undefined {
-  if (key.length < 9) return undefined;
+  if (!CHUNK_KEY_LENGTHS.has(key.length)) return undefined;
   const cx = key.readInt32LE(0);
   const cz = key.readInt32LE(4);
   let offset = 8;
@@ -48,33 +81,38 @@ function decodeChunkKey(key: Buffer): KeyInfo | undefined {
   return { cx, cz, dimension, tag, subChunkIndex };
 }
 
-async function inspectDatabase(dbDir: string): Promise<void> {
+/** Non-chunk LevelDB keys are ASCII names; anything else is corrupt. */
+function namedKey(key: Buffer): string | undefined {
+  const text = key.toString("latin1");
+  return /^[\x20-\x7e]+$/.test(text) ? text : undefined;
+}
+
+async function inspectDatabase(dbDir: string, report: Report): Promise<void> {
   const db = new ClassicLevel<Buffer, Buffer>(dbDir, { keyEncoding: "buffer", valueEncoding: "buffer" });
   await db.open();
 
   const tagCounts = new Map<number, number>();
   const chunkSet = new Set<string>();
   const subChunkSizes: number[] = [];
-  const samples: Array<{ key: Buffer; value: Buffer }> = [];
+  const subChunks: Array<{ key: string; value: Buffer }> = [];
+  const namedKeys: string[] = [];
+  const malformed: string[] = [];
   let totalKeys = 0;
-  const badKeys: Buffer[] = [];
 
   for await (const [key, value] of db.iterator()) {
     totalKeys++;
-    if (key.length < 9) {
-      tagCounts.set(-1, (tagCounts.get(-1) ?? 0) + 1);
-      continue;
-    }
     const info = decodeChunkKey(key);
     if (!info) {
-      badKeys.push(key);
+      const name = namedKey(key);
+      if (name) namedKeys.push(name);
+      else malformed.push(`${key.length} bytes: ${key.toString("hex")}`);
       continue;
     }
     tagCounts.set(info.tag, (tagCounts.get(info.tag) ?? 0) + 1);
     chunkSet.add(`${info.cx},${info.cz}`);
     if (info.tag === CHUNK_TAG.SubChunkPrefix) {
       subChunkSizes.push(value.length);
-      if (samples.length < 6) samples.push({ key, value });
+      subChunks.push({ key: `${info.cx},${info.cz} subY ${info.subChunkIndex}`, value });
     }
   }
 
@@ -83,7 +121,23 @@ async function inspectDatabase(dbDir: string): Promise<void> {
   for (const [tag, count] of [...tagCounts.entries()].sort((a, b) => b[1] - a[1])) {
     console.log(`  tag 0x${(tag & 0xff).toString(16).padStart(2, "0")} ${TAG_NAMES[tag] ?? "(other)"}: ${count}`);
   }
-  if (badKeys.length) console.log(`  malformed chunk keys: ${badKeys.length}`);
+  if (namedKeys.length) console.log(`  named non-chunk keys: ${namedKeys.join(", ")}`);
+
+  check(report, totalKeys > 0, "db", "the LevelDB is empty");
+  check(report, malformed.length === 0, "db", `malformed keys: ${malformed.slice(0, 3).join(" | ")}`);
+  check(report, chunkSet.size > 0, "db", "no chunk keys were written");
+  check(report, subChunks.length > 0, "db", "no subchunk payloads were written");
+
+  const versions = tagCounts.get(CHUNK_TAG.Version) ?? 0;
+  const finalized = tagCounts.get(CHUNK_TAG.FinalizedState) ?? 0;
+  check(report, versions === chunkSet.size, "db", `${versions} Version records for ${chunkSet.size} chunks`);
+  check(report, finalized === chunkSet.size, "db", `${finalized} FinalizedState records for ${chunkSet.size} chunks`);
+
+  const badIndex = subChunks.filter((s) => {
+    const index = Number(s.key.split("subY ")[1]);
+    return !Number.isInteger(index) || index < 0 || index > MAX_SUBCHUNK_INDEX;
+  });
+  check(report, badIndex.length === 0, "db", `${badIndex.length} subchunks outside y 0..${MAX_SUBCHUNK_INDEX}`);
 
   subChunkSizes.sort((a, b) => a - b);
   if (subChunkSizes.length) {
@@ -94,38 +148,51 @@ async function inspectDatabase(dbDir: string): Promise<void> {
     );
   }
 
-  // Round-trip our own subchunk payloads through the reference parser.
+  // Round-trip *every* payload through the reference parser.
   const { entryContentTypeToFormatMap } = (await import("mcbe-leveldb")) as {
     entryContentTypeToFormatMap: {
       SubChunkPrefix: { parse: (data: Buffer) => Promise<unknown> };
     };
   };
-  for (const sample of samples) {
-    const info = decodeChunkKey(sample.key)!;
+
+  let parsedOk = 0;
+  const parseFailures: string[] = [];
+  for (const subChunk of subChunks) {
     try {
-      const parsed = (await entryContentTypeToFormatMap.SubChunkPrefix.parse(sample.value)) as {
-        value: { version: { value: number }; subChunkIndex: { value: number }; layers: { value: { value: unknown[] } } };
+      const parsed = (await entryContentTypeToFormatMap.SubChunkPrefix.parse(subChunk.value)) as {
+        value: {
+          version: { value: number };
+          subChunkIndex: { value: number };
+          layers: { value: { value: unknown[] } };
+        };
       };
       const version = parsed.value.version.value;
       const index = parsed.value.subChunkIndex.value;
       const layers = parsed.value.layers.value.value.length;
-      console.log(
-        `  chunk ${info.cx},${info.cz} subY ${info.subChunkIndex}: parses OK ` +
-          `(version ${version}, index ${index}, layers ${layers})`,
-      );
+      if (version !== 9 || index !== Number(subChunk.key.split("subY ")[1]) || layers !== 1) {
+        parseFailures.push(`${subChunk.key}: unexpected shape (version ${version}, index ${index}, layers ${layers})`);
+        continue;
+      }
+      parsedOk++;
+      if (parsedOk <= 3) {
+        console.log(`  ${subChunk.key}: parses OK (version ${version}, index ${index}, layers ${layers})`);
+      }
     } catch (error) {
-      console.log(`  chunk ${info.cx},${info.cz} subY ${info.subChunkIndex}: PARSE FAILED - ${String(error)}`);
+      parseFailures.push(`${subChunk.key}: PARSE FAILED - ${String(error)}`);
     }
   }
+  if (subChunks.length > 3) console.log(`  ... ${parsedOk} of ${subChunks.length} payloads parsed OK`);
+  check(report, parseFailures.length === 0, "db", `subchunk parse failures: ${parseFailures.slice(0, 3).join(" | ")}`);
 
   await db.close();
 }
 
-async function inspectLevelDat(worldDir: string): Promise<void> {
+async function inspectLevelDat(worldDir: string, report: Report): Promise<void> {
   const buffer = await readFile(join(worldDir, "level.dat"));
   const { storageVersion, length, data } = await parseLevelDat(buffer);
   const value = data.value as Record<string, { value: unknown }>;
   console.log(`\nlevel.dat: header storage version ${storageVersion}, payload ${length} bytes`);
+
   const fields = [
     "LevelName",
     "GameType",
@@ -142,41 +209,95 @@ async function inspectLevelDat(worldDir: string): Promise<void> {
   for (const field of fields) {
     if (value[field] !== undefined) console.log(`  ${field}: ${JSON.stringify(value[field]!.value)}`);
   }
+
+  const num = (field: string): number | undefined => {
+    const raw = value[field]?.value;
+    return typeof raw === "number" ? raw : undefined;
+  };
+
+  check(report, storageVersion === 10, "level.dat", `header storage version is ${storageVersion}, expected 10`);
+  check(report, length === buffer.length - 8, "level.dat", `payload length ${length} disagrees with header`);
+  check(report, num("StorageVersion") === 10, "level.dat", `StorageVersion is ${num("StorageVersion")}`);
+  check(report, num("Generator") === 1, "level.dat", `Generator is ${num("Generator")}, expected 1 (infinite)`);
+  check(report, typeof value.LevelName?.value === "string" && value.LevelName.value.length > 0, "level.dat", "LevelName is missing");
+  check(report, num("showcoordinates") === 0, "level.dat", "coordinates should be hidden");
+  const spawnY = num("SpawnY");
+  check(report, spawnY !== undefined && spawnY >= 0 && spawnY <= 127, "level.dat", `SpawnY ${spawnY} is outside y 0..127`);
+  const layers = value.FlatWorldLayers?.value;
+  if (typeof layers === "string") {
+    try {
+      const parsed = JSON.parse(layers) as { block_layers?: Array<{ block_name?: string }> };
+      const names = (parsed.block_layers ?? []).map((l) => l.block_name);
+      check(report, names.length > 0 && names.every((n) => n === "minecraft:air"), "level.dat", `flat layers should be air only, got ${names.join(",")}`);
+    } catch {
+      fail(report, "level.dat", "FlatWorldLayers is not valid JSON");
+    }
+  } else {
+    fail(report, "level.dat", "FlatWorldLayers is missing");
+  }
 }
 
-function inspectZip(zipPath: string): void {
+function inspectZip(zipPath: string, report: Report): void {
   const data = readFileSync(zipPath);
   const signature = data.readUInt32LE(0);
   console.log(`\n${zipPath}`);
   console.log(`  size ${(data.length / 1024 / 1024).toFixed(2)} MB, zip magic ${signature === 0x04034b50 ? "OK" : "BAD"}`);
+
+  check(report, signature === 0x04034b50, "zip", "missing local file header signature");
+
   const names: string[] = [];
-  let offset = 0;
-  while (offset < data.length - 4 && data.readUInt32LE(offset) === 0x04034b50) {
-    const method = data.readUInt16LE(offset + 8);
-    const compressedSize = data.readUInt32LE(offset + 18);
-    const nameLength = data.readUInt16LE(offset + 26);
-    const extraLength = data.readUInt16LE(offset + 28);
-    const name = data.subarray(offset + 30, offset + 30 + nameLength).toString("utf8");
-    names.push(`${name} (${method === 8 ? "deflate" : "store"}, ${compressedSize} B)`);
-    offset += 30 + nameLength + extraLength + compressedSize;
+  if (signature === 0x04034b50) {
+    let offset = 0;
+    while (offset < data.length - 4 && data.readUInt32LE(offset) === 0x04034b50) {
+      const method = data.readUInt16LE(offset + 8);
+      const compressedSize = data.readUInt32LE(offset + 18);
+      const nameLength = data.readUInt16LE(offset + 26);
+      const extraLength = data.readUInt16LE(offset + 28);
+      const name = data.subarray(offset + 30, offset + 30 + nameLength).toString("utf8");
+      names.push(name);
+      console.log(`  ${name} (${method === 8 ? "deflate" : "store"}, ${compressedSize} B)`);
+      offset += 30 + nameLength + extraLength + compressedSize;
+      if (nameLength === 0) break;
+    }
   }
-  for (const name of names) console.log(`  ${name}`);
-  // JPEG sanity check on the icon.
-  const iconEntry = names.find((n) => n.startsWith("world_icon.jpeg"));
-  console.log(`  world_icon.jpeg present: ${iconEntry ? "yes" : "NO"}`);
+
+  for (const required of ["level.dat", "levelname.txt", "world_icon.jpeg"]) {
+    check(report, names.includes(required), "zip", `missing ${required}`);
+  }
+  check(report, names.some((n) => n.startsWith("db/")), "zip", "missing the db/ LevelDB directory");
+  check(report, names.some((n) => n.startsWith("db/") && /\.(ldb|log)$/.test(n)), "zip", "the db/ directory holds no tables");
 }
 
 async function main(): Promise<void> {
   const arg = process.argv[2];
   const zipPath = arg ?? join(process.cwd(), "dist", "Underworld-Simulator-Remastered.mcworld");
   const worldDir = join(process.cwd(), "build", "world");
-  await inspectDatabase(join(worldDir, "db"));
-  await inspectLevelDat(worldDir);
+  const report = newReport();
+
+  await inspectDatabase(join(worldDir, "db"), report);
+  await inspectLevelDat(worldDir, report);
+
   const buffer = await readFile(join(worldDir, "world_icon.jpeg"));
   const jpegMagic = buffer[0] === 0xff && buffer[1] === 0xd8;
   console.log(`\nworld_icon.jpeg: ${buffer.length} bytes, JPEG magic ${jpegMagic ? "OK" : "BAD"}`);
-  inspectZip(zipPath);
+  check(report, jpegMagic, "icon", "world_icon.jpeg is not a JPEG");
+
+  inspectZip(zipPath, report);
+
   console.log(`\nbits per block for a 5-entry palette: ${bitsForPaletteSize(5)}`);
+
+  if (report.failures.length) {
+    console.log(`\n${report.failures.length} of ${report.checks} checks FAILED:`);
+    for (const f of report.failures) console.log(`  - [${f.area}] ${f.detail}`);
+    process.exit(1);
+  }
+  console.log(`\nworld OK (${report.checks} checks passed)`);
 }
 
-await main();
+try {
+  await main();
+} catch (error) {
+  console.error(`\ninspection failed: ${String(error)}`);
+  console.error("did you run `bun run build:map` first?");
+  process.exit(1);
+}

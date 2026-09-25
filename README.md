@@ -19,7 +19,7 @@ The generated world ships with the repository:
 
 | File | Description |
 | --- | --- |
-| `dist/Underworld-Simulator-Remastered.mcworld` | Importable Bedrock world (~1.2 MB) |
+| `dist/Underworld-Simulator-Remastered.mcworld` | Importable Bedrock world (~1.6 MB) |
 | `docs/map-preview.jpg` | Top-down render of the realm (also used as the world icon) |
 
 **Importing on iPhone / iPad**
@@ -72,7 +72,7 @@ Useful quotes the reconstruction leans on:
 ## The map
 
 Realm footprint: **512 × 512 blocks** (32 × 32 chunks), centred on `0,0`, floating in the void.
-Surface heights run from **y≈13 to y≈121**; the plate is roughly 20–30 blocks thick and tapers
+Surface heights run from **y≈21 to y≈91**; the plate is roughly 20–30 blocks thick and tapers
 into nothing at its edges. North is `-Z`, east is `+X`.
 
 | Landmark | Centre (x, z) | What it is |
@@ -87,7 +87,7 @@ into nothing at its edges. North is `-Z`, east is `+X`.
 | **The Nether Portal Lobby** | `-158, 140` | The hall of **twenty** obsidian portal frames guarded by towers, connecting the Underworld to the Far Lands. |
 | **The Citadel** | `-158, 40` | The great library: three floors of shelves around a domed atrium open to the dark sky, and the exit stairwell with its ladder and broken bedrock. |
 | **The Pit / Tomb of the Mage of the Deep** | `-158, -70` | Statue-ringed pit with a spiral ramp, sculk tomb with sensors and shriekers, muffled corridors out, and the lava-trap corridor on the surface. |
-| **The Void Castles** | `-71…-111, 35…44` | Three floating castle islands in the western gulf, each holding an escape room (redstone-lamp floor, flooded maze, copper-bulb and slime floor), linked only by **glass bridges**. |
+| **The Void Castles** | `-78…-102, 36…42` | Three floating castle islands in the western gulf, each holding an escape room (redstone-lamp floor, flooded maze, copper-bulb and slime floor), linked only by **glass bridges**. |
 | **Maze Valley** | `120, -128` | The valley between two mountains, a gatehouse, and a walled labyrinth with a hidden stair out. |
 | **The Abandoned Village** | `118, -178` | Eight house plots (some ruined), a small keep, wells, gardens, hay, lamps, dead trees. |
 | **The Frost Pocket** | `-64, 168` | A bowl of snow, powder snow, ice and blue ice with dead pines and the secret stair in from the tomb. |
@@ -132,22 +132,28 @@ Target: **Bedrock 1.26.51** (confirmed against Mojang's own block list as shippe
 
 * **`.mcworld`** — a ZIP containing `level.dat`, `levelname.txt`, `world_icon.jpeg` and `db/`.
 * **`level.dat`** — 8-byte header (`u32` storage version 10, payload length) + uncompressed
-  little-endian NBT: `Generator 1` (superflat) with an **air-only flat layer** so everything
-  outside the plate stays void, `Time 18000`, `showcoordinates 0` (canon: coordinates are broken),
-  `domobspawning 0`, `keepinventory 1`, `dodaylightcycle 0`, and a spawn point placed safely at
-  the Breach.
+  little-endian NBT: `Generator 1` with an **air-only flat layer** so everything outside the plate
+  stays void, `Time 18000`, `showcoordinates 0` (canon: coordinates are broken), `domobspawning 0`,
+  `keepinventory 1`, `dodaylightcycle 0`, and a spawn point placed safely at the Breach. The
+  version stamps match an iPhone Bedrock 1.26.51 export — `InventoryVersion 1.26.51`,
+  `MinimumCompatibleClientVersion [1,26,50,0,0]`, `NetworkVersion 2193`,
+  `lastOpenedWithVersion [1,26,51,1,0]` — so importing does not raise an "older world" prompt.
+  The flat layers stay air-only on purpose: that is safe whether or not `Generator 1` means
+  "flat", whereas the export's `ClassicFlat` preset would carpet ungenerated space with grass.
 * **`db/`** — real LevelDB (via `classic-level`, bytewise comparator) with Bedrock's key layout:
   `x: i32 LE | z: i32 LE | [dimension] | tag: u8 | [subchunk index: i8]`. Written per chunk:
-  `Version 0x2C = 41` (v1.21.40 chunk format — modern, so nothing is migrated or re-blended on
-  load), `FinalizedState 0x36 = 2` (fully generated), and `SubChunkPrefix 0x2F` records for the
-  subchunks that actually contain blocks.
+  `Version 0x2C = 42` (the chunk version iPhone Bedrock 1.26.51 writes on export; 41 was used
+  through ~1.21.x), `FinalizedState 0x36 = 2` (fully generated), `Data3D 0x2B` — a 512-byte
+  heightmap plus 25 vertical biome palettes, written for **every** realm chunk so Bedrock treats
+  the chunk as already generated instead of regenerating it — legacy `Data2D 0x2D`, and
+  `SubChunkPrefix 0x2F` records for the subchunks that actually contain blocks.
 * **Subchunks** — version **9** payload (1.18+): `version, layerCount, subChunkIndex`, then one
   NBT-paletted storage layer (`bitsPerBlock << 1`, packed 32-bit words, palette of
   `{name, states, version}` compounds). Indices are in Bedrock's XZY order. Block state names were
   checked against Bedrock 1.26.51 — including the flattened IDs (`stone_bricks`, `iron_chain`).
-* **Mobile performance** — only 596 chunks have content, only ~1 840 subchunks are stored (average
+* **Mobile performance** — 745 chunks have content and ~2 275 subchunks are stored (average
   payload 2.4 KB), subchunks below/above the plate are omitted entirely, there are no block
-  entities, no entities, no ticking systems and no mobs. The whole world is ~1.2 MB, which loads
+  entities, no entities, no ticking systems and no mobs. The whole world is ~1.6 MB, which loads
   quickly and keeps memory low on a phone.
 
 If a device ever renders the terrain incorrectly, the serializer has a documented escape hatch:
@@ -165,17 +171,22 @@ bun run build:map        # generate dist/*.mcworld + docs/map-preview.jpg  (~2 s
 bun run inspect          # read the world back: keys, subchunk round-trip, level.dat, zip
 bun run typecheck        # tsc -b --noEmit
 bun test                 # 16 tests: serializer, zip, palette, terrain, level.dat
-bun run src/tools/map-ascii.ts 128   # text map of the realm for layout checks
-bun run src/tools/validate-palette.ts # every block state vs Bedrock 1.26.51
+bun run validate         # every block state vs Bedrock 1.26.51
+bun run map              # ASCII map of the realm for layout checks
+bun run check            # the whole gate: typecheck + test + validate + build + inspect
 ```
+
+`.github/workflows/ci.yml` runs exactly `bun run check` on every push to `main` and every pull
+request, so a change that breaks the palette, the serializers or the package layout fails before
+it reaches a device.
 
 Everything is deterministic: `CONFIG.seed` in `src/world/config.ts` reproduces the same map.
 
 ### Layout of the source
 
 ```
-src/bedrock/    Bedrock file formats: NBT writer, subchunk serializer, LevelDB keys + writer,
-                .mcworld ZIP packer, level.dat builder
+src/bedrock/    Bedrock file formats: NBT writer, subchunk serializer, Data3D/Data2D biome
+                writers, LevelDB keys + writer, .mcworld ZIP packer, level.dat builder
 src/world/      config.ts (seed, realm, versions)  layout.ts (landmark coordinates, roads,
                 terrain regions)  terrain.ts (heightfield, chasms, lava lake)  structures.ts
                 (towers, curtain walls, keeps, bridges, glass bridges, mazes, terraces)
@@ -206,13 +217,19 @@ Verified programmatically on every build:
 * the `.mcworld` ZIP is well formed (magic, central directory, CRC32s) and contains
   `level.dat`, `levelname.txt`, `world_icon.jpeg` and the `db/` LevelDB files;
 * `level.dat` parses back with the expected values, and the spawn point is on solid ground;
-* the LevelDB contains `Version` + `FinalizedState` for all 1 024 realm chunks and only
-  non-empty subchunks besides;
+* the LevelDB contains `Version` + `FinalizedState` + `Data3D` for all 1 024 realm chunks and
+  only non-empty subchunks besides;
 * terrain generation is deterministic and every landmark lands on solid ground.
 
+`bun run inspect` is a real gate, not a diagnostic: it collects every problem it finds and exits
+non-zero if there was any (23 checks on a healthy build). CI runs it on each push.
+
 Not verifiable here (no Minecraft client in this environment): the final in-game look, and
-whether a specific device build accepts the modern subchunk payload. That is what the
-`--subchunk-version=8` fallback and `docs/map-preview.jpg` are for.
+whether a specific device build accepts the modern subchunk payload. The Data3D biome payload is
+currently a single uniform biome per chunk (~637 bytes) rather than the ~5 KB layout a native
+1.26.51 export writes; `docs/IOS-1.26-FINDINGS.md` records what a device export looks like, and
+that difference is the main remaining known gap. The `--subchunk-version=8` fallback and
+`docs/map-preview.jpg` exist for the same reason.
 
 ### Known gaps versus the original
 

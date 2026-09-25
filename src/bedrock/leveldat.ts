@@ -1,49 +1,83 @@
 /**
- * Builds Bedrock `level.dat` (little-endian NBT with 8-byte header).
+ * level.dat construction.
  *
- * Header: StorageVersion (i32 LE) + NBT payload length (i32 LE).
- * Payload: unnamed root compound.
+ * `level.dat` is an 8 byte header (u32 LE storage version = 10, u32 LE payload
+ * length) followed by uncompressed little-endian NBT. The world is a *void flat
+ * world* (`Generator: 1` + an air-only flat layer) so that everything outside
+ * the hand-built realm stays void - which is how the Underworld is described in
+ * the source material ("a world within the void", "sometimes these barren
+ * wastelands fracture to void").
  *
- * Fields aligned to an iPhone Bedrock 1.26.51 export (2026-09-25).
+ * Version stamps (InventoryVersion, MinimumCompatibleClientVersion,
+ * NetworkVersion, lastOpenedWithVersion) mirror an iPhone Bedrock 1.26.51
+ * export so the packaged world imports without an "older world" prompt.
  */
 
+import nbt from "prismarine-nbt";
 import { CONFIG } from "../world/config.ts";
-import * as nbt from "./nbt-le.ts";
-import type { NbtTag } from "./nbt-le.ts";
 
 export interface LevelDatOptions {
   levelName: string;
   spawn: { x: number; y: number; z: number };
   seed: string;
+  /** Unix seconds. */
+  lastPlayed?: number;
+  /** void = the air-only superflat preset (matches "fractures to void"). */
   flatWorld?: boolean;
 }
 
-export function buildLevelDat(opts: LevelDatOptions): Buffer {
-  const lastPlayed = Math.floor(Date.now() / 1000);
+/** Game rules written to level.dat; Bedrock stores each rule as a root Int tag. */
+const GAME_RULES: Record<string, number> = {
+  commandblockoutput: 0,
+  dodaylightcycle: 0, // permanently dark: the Underworld has no day
+  doentitydrops: 0,
+  dofiretick: 0, // fewer ticking blocks = smoother on phones
+  dolimitedcrafting: 0,
+  domobloot: 0,
+  domobspawning: 0, // "map only": no mobs to fight or lag the device
+  dotiledrops: 0,
+  doweathercycle: 0,
+  drowningdamage: 1,
+  falldamage: 1,
+  firedamage: 1,
+  keepinventory: 1,
+  mobgriefing: 0,
+  naturalregeneration: 1,
+  playerssleepingpercentage: 100,
+  pvp: 1,
+  randomtickspeed: 3,
+  sendcommandfeedback: 1,
+  showcoordinates: 0, // canon: "in the Underworld coordinates are broken"
+  showdeathmessages: 1,
+  showtags: 1,
+  spawnradius: 2,
+  tntexplodes: 0,
+};
 
+type NbtTag = { type: string; value: unknown };
+
+export function buildLevelDatNbt(opts: LevelDatOptions): nbt.NBT {
+  const lastPlayed = opts.lastPlayed ?? Math.floor(Date.now() / 1000);
   const flatLayers = JSON.stringify({
     biome_id: 1,
-    block_layers: [
-      { block_name: "minecraft:bedrock", count: 1 },
-      { block_name: "minecraft:dirt", count: 2 },
-      { block_name: "minecraft:grass_block", count: 1 },
-    ],
+    block_layers:
+      opts.flatWorld === false
+        ? [{ block_name: "minecraft:deepslate", count: 1 }]
+        : [{ block_name: "minecraft:air", count: 1 }],
     encoding_version: 6,
-    preset_id: "ClassicFlat",
     structure_options: null,
-    world_version: "version.post_1_18",
   });
 
   const entries: Record<string, NbtTag> = {
     StorageVersion: nbt.int(10),
     LevelName: nbt.string(opts.levelName),
     GameType: nbt.int(1),
-    Generator: nbt.int(1), // Infinite (phone uses 1)
+    Generator: nbt.int(1), // infinite / superflat base; flat layers stay air-only
     FlatWorldLayers: nbt.string(flatLayers),
     RandomSeed: nbt.long(BigInt(CONFIG.seed)),
     LevelSeed: nbt.string(opts.seed),
     LastPlayed: nbt.long(BigInt(lastPlayed)),
-    Time: nbt.int(18000),
+    Time: nbt.int(18000), // midnight: dark sky over the wasteland
     DayCycleStopTime: nbt.int(18000),
     currentTick: nbt.long(0n),
     SpawnX: nbt.int(opts.spawn.x),
@@ -77,9 +111,10 @@ export function buildLevelDat(opts: LevelDatOptions): Buffer {
     XBLBroadcastIntent: nbt.int(1),
     worldStartCount: nbt.long(0n),
     MinimumCompatibleClientVersion: nbt.list(nbt.int(CONFIG.minimumClientVersion)),
+    // Matches the iPhone export: [1, 26, 51, 1, 0].
     lastOpenedWithVersion: nbt.list(nbt.int([1, 26, 51, 1, 0])),
     InventoryVersion: nbt.string(CONFIG.inventoryVersion),
-    NetworkVersion: nbt.int(CONFIG.networkVersion ?? 2193),
+    NetworkVersion: nbt.int(CONFIG.networkVersion),
     WorldVersion: nbt.int(1),
     Platform: nbt.int(2),
     prid: nbt.string(""),
@@ -95,43 +130,38 @@ export function buildLevelDat(opts: LevelDatOptions): Buffer {
       instabuild: nbt.int(0),
       invulnerable: nbt.int(0),
       lightning: nbt.int(0),
-      mayfly: nbt.int(1),
+      mayfly: nbt.int(0),
       mine: nbt.int(1),
+      op: nbt.int(1),
       opencontainers: nbt.int(1),
-      permissionsLevel: nbt.int(1),
+      permissionsLevel: nbt.int(2),
       playerPermissionsLevel: nbt.int(1),
       teleport: nbt.int(1),
       walkSpeed: nbt.float(0.1),
     }),
-    commandblockoutput: nbt.int(1),
-    dodaylightcycle: nbt.int(0),
-    doentitydrops: nbt.int(1),
-    dofiretick: nbt.int(1),
-    dolimitedcrafting: nbt.int(0),
-    domobloot: nbt.int(1),
-    domobspawning: nbt.int(0),
-    dotiledrops: nbt.int(1),
-    doweathercycle: nbt.int(0),
-    drowningdamage: nbt.int(1),
-    falldamage: nbt.int(1),
-    firedamage: nbt.int(1),
-    keepinventory: nbt.int(0),
-    mobgriefing: nbt.int(1),
-    naturalregeneration: nbt.int(1),
-    playerssleepingpercentage: nbt.int(100),
-    randomtickspeed: nbt.int(1),
-    sendcommandfeedback: nbt.int(1),
-    showcoordinates: nbt.int(1),
-    showdeathmessages: nbt.int(1),
-    showtags: nbt.int(1),
-    spawnradius: nbt.int(5),
-    tntexplodes: nbt.int(1),
   };
 
-  const root = nbt.comp(entries);
-  const payload = nbt.encode(root);
-  const header = Buffer.allocUnsafe(8);
-  header.writeInt32LE(10, 0); // StorageVersion
-  header.writeInt32LE(payload.length, 4);
+  for (const [rule, value] of Object.entries(GAME_RULES)) {
+    entries[rule] = nbt.int(value);
+  }
+
+  return { type: "compound", name: "", value: entries as unknown as nbt.NBT["value"] } as nbt.NBT;
+}
+
+export function buildLevelDat(opts: LevelDatOptions): Buffer {
+  const payload = nbt.writeUncompressed(buildLevelDatNbt(opts), "little");
+  const header = Buffer.alloc(8);
+  header.writeUInt32LE(10, 0); // storage version
+  header.writeUInt32LE(payload.length, 4);
   return Buffer.concat([header, payload]);
+}
+
+/** Parse a level.dat back into NBT (used by the verifier). */
+export async function parseLevelDat(
+  buffer: Buffer,
+): Promise<{ storageVersion: number; length: number; data: nbt.NBT }> {
+  const storageVersion = buffer.readUInt32LE(0);
+  const length = buffer.readUInt32LE(4);
+  const parsed = await nbt.parse(buffer.subarray(8, 8 + length), "little");
+  return { storageVersion, length, data: parsed.parsed };
 }
