@@ -260,3 +260,35 @@ round-trip compared all 2 386 subchunks block by block, **26/26 inspection check
 (184 749 B). The new test `the plate is torn: cracks open onto the void, the rim sheds, and detail
 reaches the edge` pins all three fixes - 45 through-crack mouths (> 20), 1 200+ hanging rim columns
 (> 500) and > 5 % detail on the outer band - so none of them can silently regress.
+
+## The west actually darkens now
+
+Canon: *"The sky and void grow increasingly darker as the proximity to the end shortens."* The
+palette had a `darkness(x)` ramp, and the README described "the far west is the darkest rock ... the
+darker-toward-the-End gradient" - but the ramp was `(-215 - x) / 40`, so it only became non-zero
+**past x = -215**. Every western landmark sits *east* of that: the void castles at ~-90, the Citadel
+and the Tomb at ~-158, the Portal Lobby at ~-158, the Citadel footprint ending at -189. The gradient
+therefore only ever tinted the last ~40 blocks of empty rim beyond everything, and the entire built
+west was exactly as light as the east.
+
+`darkness()` now ramps from **`darkEdgeStartX = -58`** (just west of the Center, so the change is
+visible by the time the player reaches the gulf) to **`darkEdgeX = -218`** (past the Citadel), and it
+is exported so `ruinMasonry` in `decorate.ts` can use it too. The ruins no longer flip black at a
+hard `x < -60` line: a ruin is as likely to be black stone as the ground beneath it is dark, so the
+material change reads as a gradient rather than a seam.
+
+Measured on the finished ground: black rock (blackstone, polished blackstone, basalt, crying
+obsidian, black concrete) rises from **~17 % of surface columns east of the Center, through ~27 %
+around the Citadel, to ~43 % in the far-west band** beyond it - more than double, and now unmissable
+on the map preview and in game. The new test `the west darkens toward the End` samples two bands
+clear of every landmark and holds both figures, because the previous values passed silently.
+
+The all-block mix is deliberately unchanged in the README's headline numbers (deepslate 51 %, tuff
+21 %): the recolour only touches the 1-4 surface blocks of each column (~164 k of 4.06 M blocks), so
+it changes what the player sees without disturbing the plate's bulk.
+
+### State
+
+`bun run check` green: **22 tests** (160 expectations), palette OK, 2 386 subchunks round-trip,
+**26/26 inspection checks**, `dist/Underworld-Simulator-Remastered.mcworld` 1.75 MB,
+`docs/map-preview.jpg` regenerated (188 616 B).

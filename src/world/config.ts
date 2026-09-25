@@ -65,8 +65,18 @@ export const CONFIG = {
     realmRadius: 220,
     /** The void gulf west of the Center, crossed only by glass bridges. */
     voidGulf: { minX: -108, maxX: -72 },
-    /** Sky/void darkens toward this edge (canon: "closer to the End"). */
-    darkEdgeX: -215,
+    /**
+     * The western reach begins to darken here - just west of the Center, so the
+     * gradient is already visible by the time the player reaches the gulf.
+     */
+    darkEdgeStartX: -58,
+    /**
+     * ...and is at its darkest by this edge (canon: "the sky and void grow
+     * increasingly darker as the proximity to the end shortens"). This sits
+     * beyond the Citadel, Tomb and Portal Lobby, so every built place in the
+     * west is a step further into the dark rather than a light island.
+     */
+    darkEdgeX: -218,
   },
 
   levelName: "Underworld",

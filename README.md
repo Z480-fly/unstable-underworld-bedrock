@@ -105,8 +105,14 @@ into nothing at its edges. North is `-Z`, east is `+X`.
   video route, clockwise.
 * The eastern **void fracture** and the northern **fracture** cut the plate apart; roads crossing
   them are bridged, and the bridges are deliberately **broken**.
-* The plate's lit, built areas sit around the Center; the far west is the darkest rock (blackstone,
-  crying obsidian, sculk, more black concrete) — the "darker toward the End" gradient.
+* **The west darkens toward the End.** The surface palette ramps from the grey plain just west of the
+  Center through the void castles and the Citadel to black rock at the rim: blackstone, polished
+  blackstone, basalt, crying obsidian and black concrete climb from ~17 % of the ground east of the
+  Center, through ~27 % around the Citadel, to ~43 % in the far-west band (`darkEdgeStartX` /
+  `darkEdgeX` in `config.ts`). The ruin
+  masonry darkens with it, so the broken structures out west are built from the same black stone the
+  ground there is made of. A test holds the gradient in place — the old ramp began *past* the Citadel
+  and only ever tinted the empty rim.
 
 Atmosphere is entirely block-built: soul lanterns and soul fire, crying obsidian, sculk, soul
 sand/soil flats, obsidian cairns along the void rim, grave lanterns, and a permanently dark sky
@@ -147,8 +153,8 @@ most effort on:
 The palette splits the way the sources do - *"almost everything is gray or black, with really the
 only vibrant color being the green visible on some structures"*:
 
-* the **ground is gray and black**: deepslate (52 %), tuff (21 %, the old gravel shading), blackstone,
-  basalt, cobbled deepslate, obsidian, soul sand/soil;
+* the **ground is gray and black**: deepslate (51 %), tuff (21 %, the old gravel shading), blackstone
+  (6 %), basalt, cobbled deepslate, obsidian, soul sand/soil;
 * the **green is green stained glass, and it is on structures** - the Soul Keepers' tower windows at
   the Breach, the Withered Castle's corner towers, the Citadel, the void castles, the Portal Lobby
   guard posts, and the parkour course in the void castles' escape room.
@@ -226,7 +232,7 @@ bun install
 bun run build:map        # generate dist/*.mcworld + docs/map-preview.jpg  (~2 s)
 bun run inspect          # read the world back: keys, subchunk round-trip, level.dat, zip
 bun run typecheck        # tsc -b --noEmit
-bun test                 # 21 tests: serializer, zip, palette, terrain, landmarks, level.dat
+bun test                 # 22 tests: serializer, zip, palette, terrain, landmarks, level.dat
 bun run validate         # every block state vs Bedrock 1.26.51
 bun run map              # ASCII map of the realm for layout checks
 bun run audit            # per-landmark audit: did each one actually build something?
@@ -286,7 +292,10 @@ Verified programmatically on every build:
   fourteen landmarks places its signature geometry (`bun run audit` prints the counts);
 * the plate is actually torn: 45 columns open through it into the void, the rim hangs masonry into
   the void beside it, and the outer band of the plate carries the same density of ruin as the middle
-  (all three are asserted in `bun test`, because all three were quietly false before).
+  (all three are asserted in `bun test`, because all three were quietly false before);
+* the wasteland really does darken toward the End: the far-west ground is more than twice as black as
+  the east, asserted in `bun test` because the darkening ramp used to start beyond every western
+  building.
 
 `bun run inspect` is a real gate, not a diagnostic: it collects every problem it finds and exits
 non-zero if there was any (26 checks on a healthy build). CI runs it on each push.

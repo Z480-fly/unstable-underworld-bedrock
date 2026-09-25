@@ -137,6 +137,48 @@ describe("terrain", () => {
     expect(world.isLand(-160, 40)).toBe(true);
   });
 
+  test("the west darkens toward the End", () => {
+    // Canon: "The sky and void grow increasingly darker as the proximity to the
+    // end shortens." Asserted on the real surface palette, because the ramp
+    // used to begin past x=-215 - beyond the Citadel, the Tomb and the Portal
+    // Lobby - so every built place in the west was exactly as light as the
+    // east and the gradient only ever appeared on the empty rim.
+    const world = new World();
+    generateTerrain(world);
+    const dark = new Set([
+      P.blackstone.name,
+      P.polishedBlackstone.name,
+      P.basalt.name,
+      P.cryingObsidian.name,
+      P.blackConcrete.name,
+    ]);
+    const blackFraction = (fromX: number, toX: number): number => {
+      let darkColumns = 0;
+      let columns = 0;
+      for (let z = -180; z <= 180; z += 2) {
+        for (let x = fromX; x <= toX; x += 2) {
+          if (!world.isLand(x, z)) continue;
+          columns++;
+          const block = world.get(x, world.surfaceAt(x, z), z);
+          if (block && dark.has(block.name)) darkColumns++;
+        }
+      }
+      expect(columns, `no land in x ${fromX}..${toX}`).toBeGreaterThan(200);
+      return darkColumns / columns;
+    };
+    // Both bands sit clear of every landmark, so this is the wasteland itself.
+    const west = blackFraction(-215, -196);
+    const east = blackFraction(182, 212);
+    // Soul flats and the obsidian/tuff tail keep even the darkest band under
+    // 50%; what matters is that the far west is overwhelmingly black and the
+    // east plainly is not.
+    expect(west, `${(west * 100).toFixed(0)}% of the far-west ground is black rock`).toBeGreaterThan(
+      0.35,
+    );
+    expect(east, `${(east * 100).toFixed(0)}% of the eastern ground is black rock`).toBeLessThan(0.3);
+    expect(west).toBeGreaterThan(east + 0.15);
+  });
+
   test("vertical range stays inside the generated buffer", () => {
     const world = new World();
     const stats = generateTerrain(world);
