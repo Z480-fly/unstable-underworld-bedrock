@@ -20,70 +20,52 @@ export const CONFIG = {
   seed: 20260924,
 
   /** Bedrock version stamps. */
-  minimumClientVersion: [1, 21, 0, 0] as [number, number, number, number],
-  inventoryVersion: "1.21.0",
+  minimumClientVersion: [1, 26, 50, 0, 0] as [number, number, number, number],
+  inventoryVersion: "1.26.51",
+  /** Protocol/network version seen on iOS 1.26.51. */
+  networkVersion: 2193,
   /**
    * Chunk "Version" byte (LevelDB key 0x2C).
-   * 41 = v1.21.40 chunk format, which is the modern format (subchunk v9 +
-   * 3D biome data + independent entity storage).
+   * iPhone Bedrock 1.26.51 writes 42 (confirmed from native export 2026-09-25).
+   * 41 was used through ~1.21.x; 1.26 clients may ignore or empty 41 chunks.
    */
-  chunkVersion: 41,
+  chunkVersion: 42,
   /**
    * Subchunk payload version. 9 = 1.18+ (modern). 8 is kept as a supported
    * fallback that older tooling/clients upgrade automatically; flip it with
-   * `--subchunk-version=8` if a device ever refuses the modern payload.
+   * `--subchunk-version=8` if a device ever rejects version 9.
    */
   subChunkVersion: 9 as 8 | 9,
 
-  /** Vertical range that is actually generated. */
+  /** Vertical range of the map (inclusive). */
   minY: 0,
   maxY: 127,
 
   /**
-   * Realm footprint in chunks (512 x 512 blocks). Big enough that every
-   * landmark sits well inside the plate with a rim of void around it - the
-   * island itself covers roughly 150k of the 262k columns.
+   * Soft edge falloff so the plate fades into the void instead of a hard cut.
+   * Measured in blocks from the realm edge.
    */
-  realm: {
-    minChunkX: -16,
-    maxChunkX: 15,
-    minChunkZ: -16,
-    maxChunkZ: 15,
-  } satisfies RealmBounds,
+  edgeFalloff: 24,
 
-  /** Terrain shaping. */
-  terrain: {
-    /** Base surface height of the wasteland plain. */
-    baseHeight: 48,
-    /** How thick the floating plate is before it tapers into void. */
-    plateDepth: 24,
-    /** Amplitude of rolling wasteland relief (kept modest so landmarks sit level). */
-    reliefAmplitude: 4,
-    /** Landmass radius (blocks) of the main realm — larger = more continuous plate. */
-    realmRadius: 230,
-    /**
-     * The void gulf west of the Center, crossed only by glass bridges.
-     * Narrowed so the plate stays connected and landmarks don't feel isolated.
-     */
-    voidGulf: { minX: -108, maxX: -72 },
-    /** Sky/void darkens toward this edge (canon: "closer to the End"). */
-    darkEdgeX: -215,
-  },
+  /**
+   * Void gulf: a north-south strip of pure void that cuts the realm in half
+   * (the classic Unstable Underworld "chasm" feel). Columns with |x| inside
+   * [voidGulfMin, voidGulfMax] are forced to void (except protected pads).
+   */
+  voidGulfMin: -108,
+  voidGulfMax: -72,
 
-  levelName: "Underworld",
+  /** Approximate radius of the circular plate. */
+  realmRadius: 220,
 } as const;
 
-export const REALM = CONFIG.realm;
+/** Inclusive chunk bounds of the generated realm (covers the circular plate). */
+export const REALM: RealmBounds = {
+  minChunkX: -16,
+  maxChunkX: 15,
+  minChunkZ: -16,
+  maxChunkZ: 15,
+};
+
 export const CHUNKS_X = REALM.maxChunkX - REALM.minChunkX + 1;
 export const CHUNKS_Z = REALM.maxChunkZ - REALM.minChunkZ + 1;
-export const WORLD_MIN_X = REALM.minChunkX * 16;
-export const WORLD_MAX_X = (REALM.maxChunkX + 1) * 16 - 1;
-export const WORLD_MIN_Z = REALM.minChunkZ * 16;
-export const WORLD_MAX_Z = (REALM.maxChunkZ + 1) * 16 - 1;
-export const WORLD_HEIGHT = CONFIG.maxY - CONFIG.minY + 1;
-
-/** Index helpers for the flat realm-wide grids (height map, land mask, ...). */
-export const GRID_SIZE = CHUNKS_X * 16 * CHUNKS_Z * 16;
-export function gridIndex(x: number, z: number): number {
-  return (z - WORLD_MIN_Z) * (CHUNKS_X * 16) + (x - WORLD_MIN_X);
-}
