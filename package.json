@@ -7,8 +7,11 @@
   "scripts": {
     "build:map": "bun run src/build.ts",
     "inspect": "bun run src/tools/inspect-world.ts",
+    "validate": "bun run src/tools/validate-palette.ts",
+    "map": "bun run src/tools/map-ascii.ts",
     "typecheck": "tsc -b --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "check": "bun run typecheck && bun test && bun run validate && bun run build:map && bun run inspect"
   },
   "dependencies": {
     "classic-level": "^3.0.0",

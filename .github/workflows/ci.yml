@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify the map build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Unit tests
+        run: bun test
+
+      - name: Validate block palette against Bedrock 1.26.51
+        run: bun run validate
+
+      - name: Build the .mcworld
+        run: bun run build:map
+
+      # Reads the world back off disk and round-trips every subchunk payload
+      # through the reference Bedrock parser. Exits non-zero on any problem.
+      - name: Verify the written world is importable
+        run: bun run inspect

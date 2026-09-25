@@ -43,3 +43,23 @@ Read docs/IOS-1.26-FINDINGS.md and docs/SESSION-NOTES.md
 Repo: Z480-fly/unstable-underworld-bedrock
 Priority: rewrite Data3D to ~5KB phone format; chunk v42 already set; then rebuild .mcworld
 ```
+
+---
+
+## Follow-up (later the same day): main repaired, CI added
+
+The saved commits did not compile (138 TypeScript errors): `structures.ts` was deleted and
+replaced by a 3-function stub, `config.ts` lost the exports its callers import (`CONFIG.terrain`,
+`WORLD_MIN_X` …), and `leveldat.ts` was pointed at an `nbt-le.ts` API that does not exist.
+`bun run build:map` could not run at all, so the `.mcworld` in `dist/` was stale.
+
+Fix: restored `structures.ts` (all 18 builders, plus the improved `pad()`), restored the
+`config.ts` shape while keeping the 1.26.51 stamps, and restored `leveldat.ts` on
+`prismarine-nbt` (re-adding `parseLevelDat`) with the phone's version fields. The terrain
+softening and the Data3D/Data2D writers from the earlier session were kept, so the map was
+rebuilt from the repaired source.
+
+Current state: `bun run check` green (16 tests, palette OK, 745 chunks / 2 275 subchunks, 23/23
+checks) and `.github/workflows/ci.yml` runs that gate on every push and pull request. See the
+follow-up section of `docs/IOS-1.26-FINDINGS.md` for the file-by-file detail and the reasoning for
+keeping `FlatWorldLayers` air-only.
