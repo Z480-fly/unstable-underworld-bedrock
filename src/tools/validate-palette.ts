@@ -52,6 +52,7 @@ const KNOWN_BEDROCK_STATES = new Set([
   "covered_bit",
   "direction",
   "door_hinge_bit",
+  "end_portal_eye_bit",
   "extinguished",
   "facing_direction",
   "fill_level",
