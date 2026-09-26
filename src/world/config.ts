@@ -58,9 +58,9 @@ export const CONFIG = {
     /** Base surface height of the wasteland plain. */
     baseHeight: 46,
     /** How thick the floating plate is before it tapers into void. */
-    plateDepth: 22,
-    /** Amplitude of rolling wasteland relief. */
-    reliefAmplitude: 6,
+    plateDepth: 24,
+    /** Amplitude of rolling wasteland relief (raised slightly for more character). */
+    reliefAmplitude: 8,
     /** Landmass radius (blocks) of the main realm. */
     realmRadius: 220,
     /** The void gulf west of the Center, crossed only by glass bridges. */
