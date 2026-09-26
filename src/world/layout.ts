@@ -380,7 +380,10 @@ export const ROADS: RoadPath[] = [
   {
     id: "glassworksRoad",
     from: { x: 112, z: 40 },
-    to: LANDMARKS.glassworks.center,
+    // Stop at the hall's north wall rather than its centre: roads are painted
+    // after the landmarks, so ending on the centre would pave over the glazed
+    // floor (and the eye oculus set into it).
+    to: { x: 188, z: 194 },
     via: [{ x: 150, z: 140 }],
     width: 1,
     style: "path",
