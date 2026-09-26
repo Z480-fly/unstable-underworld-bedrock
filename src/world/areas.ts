@@ -24,6 +24,7 @@ import {
 } from "./areas_b.ts";
 import { buildEndRuin } from "./end_ruin.ts";
 import { buildGlassGrove } from "./glass_grove.ts";
+import { buildCathedral } from "./glass_cathedral.ts";
 
 export function buildAllAreas(world: World): void {
   buildBreach(world);
@@ -44,6 +45,7 @@ export function buildAllAreas(world: World): void {
   buildPortalField(world);
   buildEndRuin(world);
   buildGlassGrove(world);
+  buildCathedral(world);
 }
 
 export {
@@ -68,3 +70,4 @@ export {
 } from "./areas_b.ts";
 export { buildEndRuin } from "./end_ruin.ts";
 export { buildGlassGrove } from "./glass_grove.ts";
+export { buildCathedral } from "./glass_cathedral.ts";

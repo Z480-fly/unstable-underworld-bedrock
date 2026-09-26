@@ -173,6 +173,14 @@ export const LANDMARKS = {
     source:
       "The field of gates east of the labyrinth: portals cut short, sheared off mid-frame and collapsed where the Underworld's links failed.",
   },
+  cathedral: {
+    id: "cathedral",
+    name: "The Glass Cathedral & the Layered Sky",
+    center: { x: -140, z: -180 },
+    footprint: { kind: "rect", x1: -204, z1: -244, x2: -76, z2: -116 },
+    source:
+      "The ruined gothic arch of the reference, burning green, standing under stacked sheets of floating glass with moss along every rim - the Soul Keepers' glazing hung in the sky itself.",
+  },
   glassGrove: {
     id: "glassGrove",
     name: "The Glass Grove - the giant tree",
@@ -257,6 +265,8 @@ export const TERRAIN_REGIONS: TerrainRegion[] = [
   // The Glass Grove sits on a flattened shelf: a giant tree needs level ground
   // for its buttress roots, and the north basin would otherwise tilt it.
   { id: "glassGroveShelf", shape: { kind: "rect", x1: 6, z1: -286, x2: 116, z2: -180 }, heightDelta: 2, relief: 0.3 },
+  // The cathedral stands on its own flattened shelf in the dark north-west.
+  { id: "cathedralShelf", shape: { kind: "rect", x1: -212, z1: -252, x2: -68, z2: -108 }, heightDelta: 3, relief: 0.3 },
 ];
 
 export interface RoadPath {
@@ -404,6 +414,14 @@ export const ROADS: RoadPath[] = [
     from: LANDMARKS.mazeValley.center,
     to: LANDMARKS.portalField.center,
     via: [{ x: 190, z: -120 }],
+    width: 1,
+    style: "path",
+  },
+  {
+    id: "cathedralRoad",
+    from: { x: 40, z: -172 },
+    to: { x: -104, z: -180 },
+    via: [{ x: -20, z: -186 }, { x: -70, z: -180 }],
     width: 1,
     style: "path",
   },

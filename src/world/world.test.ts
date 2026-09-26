@@ -406,6 +406,55 @@ describe("terrain", () => {
     expect(kerb, "the path has no deepslate kerb framing the glazing").toBeGreaterThan(100);
   });
 
+  test("the glass trees are entirely glass - no leaves in the world at all", () => {
+    // The reference's crowns are glazing, not foliage with glazing in it. The
+    // trees were originally dark-oak leaves shot through with glass, which is
+    // a different (and much quieter) object. Asserted on the whole world, not
+    // just the grove, so a future "just add leaves back for texture" is caught.
+    const world = generateWorld();
+    const leaves = new Set([
+      P.darkOakLeaves.name,
+      P.oakLeaves.name,
+      "minecraft:leaves",
+      "minecraft:azalea_leaves",
+    ]);
+    let leafBlocks = 0;
+    let glassAbove = 0;
+    for (const chunk of world.allChunks()) {
+      for (const block of chunk.palette) {
+        if (leaves.has(block.name)) leafBlocks++;
+        if (/stained_glass$|_glass$/.test(block.name)) glassAbove++;
+      }
+    }
+    expect(leafBlocks, `${leafBlocks} leaf blocks reached the world`).toBe(0);
+    expect(glassAbove, "the world lost its glazing").toBeGreaterThan(30);
+  });
+
+  test("the cathedral has layered glass sheets stacked in the sky", () => {
+    // The reference's most distinctive image is stacked translucent sheets
+    // floating overhead with green fronds on their rims. A single flat sheet
+    // would pass a naive "is there glass up there" check, so this counts
+    // distinct occupied heights: the layering is the whole point.
+    const lm = LANDMARKS.cathedral;
+    const world = generateWorld();
+    const heights = new Set<number>();
+    let skyGlass = 0;
+    for (let z = lm.footprint.z1; z <= lm.footprint.z2; z++) {
+      for (let x = lm.footprint.x1; x <= lm.footprint.x2; x++) {
+        for (let y = 60; y < CONFIG.maxY; y++) {
+          const block = world.get(x, y, z);
+          if (!block) continue;
+          if (!/stained_glass$/.test(block.name)) continue;
+          skyGlass++;
+          heights.add(y);
+        }
+      }
+    }
+    expect(skyGlass, "no glass above the cathedral").toBeGreaterThan(5000);
+    // Five sheets, so at least five distinct Y levels carry glass.
+    expect(heights.size, `glass occupies only ${heights.size} distinct heights`).toBeGreaterThanOrEqual(5);
+  });
+
   test("every landmark actually builds something", () => {
     // A landmark that silently produced no geometry is invisible on a top-down
     // map and only shows up in game, so each one is fingerprinted by a block
@@ -429,7 +478,8 @@ describe("terrain", () => {
       glassworks: P.greenGlass.name,
       portalField: P.cryingObsidian.name,
       endRuin: P.endPortal.name,
-      glassGrove: P.darkOakLeaves.name,
+      glassGrove: P.purpleGlass.name,
+      cathedral: P.blueGlass.name,
     };
     const world = generateWorld();
     for (const landmark of Object.values(LANDMARKS)) {

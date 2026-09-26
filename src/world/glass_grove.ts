@@ -67,7 +67,9 @@ export function buildGlassGrove(world: World): void {
     trunkRadius: 6,
     canopyRadius: 24,
     canopyLayers: 13,
-    glassiness: 0.3,
+    // All glass: the reference's crown is glazing, not foliage with glazing in
+    // it, so no leaf reaches the world here at all.
+    allGlass: true,
     glasses: VIVID_PRISM,
     seed: 0x9a11,
     eyeAt: true,
@@ -95,7 +97,7 @@ export function buildGlassGrove(world: World): void {
       trunkRadius: Math.max(2, Math.round(4 * t.scale)),
       canopyRadius: Math.round(12 * t.scale),
       canopyLayers: 9,
-      glassiness: t.green ? 0.24 : 0.34,
+      allGlass: true,
       glasses: t.green ? SOUL_GREEN : PRISM,
       seed: 0x9a11 + (i + 1) * 7919,
     });

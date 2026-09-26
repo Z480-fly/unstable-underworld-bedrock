@@ -167,6 +167,184 @@ export function prismPillar(
  * dark-oak mast, a sea-lantern head, and a glowstone under it so the light
  * actually reaches the ground.
  */
+/**
+ * A layered glass sky: overlapping translucent sheets hung over a region, with
+ * green fronds trailing off their rims.
+ *
+ * This is the reference's most distinctive image - big violet and blue sheets
+ * floating in stacked layers, moss growing along their edges, seen from below.
+ * It is built as several *separate* layers at different heights rather than one
+ * slab, because the whole read is the parallax between the layers.
+ *
+ * Each layer is an irregular disc rather than a circle: the rim is eaten away
+ * by noise so no two layers share a silhouette, and a percentage of the cells
+ * are dropped outright so you can see the layer above through the one below.
+ */
+export function glassSky(
+  world: World,
+  cx: number,
+  cz: number,
+  baseY: number,
+  opts: {
+    layers?: number;
+    radius?: number;
+    layerGap?: number;
+    sheetThickness?: number;
+    glasses?: BlockState[];
+    underGlass?: BlockState[];
+    frondChance?: number;
+    seed?: number;
+  } = {},
+): void {
+  const layers = opts.layers ?? 5;
+  const radius = opts.radius ?? 40;
+  const layerGap = opts.layerGap ?? 7;
+  const thickness = opts.sheetThickness ?? 1;
+  // Clamp the whole stack to fit under the ceiling rather than dropping it.
+  // Silently returning on an out-of-range sky looked like the build passing
+  // while the landmark quietly had no sky over it at all.
+  const ceiling = 124;
+  if (baseY >= ceiling) return;
+  const maxLayers = Math.max(1, Math.floor((ceiling - baseY) / layerGap));
+  const layerCount = Math.min(layers, maxLayers);
+  const top = baseY + layerCount * layerGap;
+  const glasses = opts.glasses ?? [P.purpleGlass, P.blueGlass, P.lightBlueGlass, P.cyanGlass, P.magentaGlass];
+  const under = opts.underGlass ?? [P.purpleGlass, P.blueGlass, P.purpleGlass];
+  const frondChance = opts.frondChance ?? 0.1;
+  const seed = opts.seed ?? 0x5c1a;
+
+  for (let layer = 0; layer < layerCount; layer++) {
+    const y = baseY + layer * layerGap;
+    // Each layer is offset and a different size, so they never stack into a
+    // single flat ceiling when seen from below.
+    const offsetX = Math.round(Math.sin(layer * 1.7) * radius * 0.22);
+    const offsetZ = Math.round(Math.cos(layer * 1.3) * radius * 0.22);
+    const r = Math.round(radius * (0.55 + layer * 0.11));
+    const lx = cx + offsetX;
+    const lz = cz + offsetZ;
+    for (let dz = -r; dz <= r; dz++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const d = Math.hypot(dx, dz) / r;
+        if (d > 1) continue;
+        const x = lx + dx;
+        const z = lz + dz;
+        // Irregular rim: the outer third of each sheet is eaten away.
+        if (d > 0.62 && hash3(x, y, z, seed + layer * 31) < (d - 0.62) * 1.5) continue;
+        // Punch holes so the layer above shows through this one.
+        if (hash3(x, y, z, seed + layer * 57) < 0.12) continue;
+        const block = hash3(x, y, z, seed + layer * 13) < 0.45 ? prismAt(under, x, y, z, seed + layer) : prismAt(glasses, x, y, z, seed + layer);
+        for (let t = 0; t < thickness; t++) {
+          world.set(x, y + t, z, t === 0 ? block : prismAt(glasses, x, y + t, z, seed + layer + 3));
+        }
+        // Green fronds hanging off the rim, the moss the reference shows
+        // growing along every sheet's edge.
+        if (d > 0.55 && hash3(x, y, z, seed + layer * 71) < frondChance * d) {
+          const drop = 2 + Math.floor(hash3(x, y, z, seed + layer * 91) * 6);
+          for (let f = 1; f <= drop; f++) {
+            const pick = hash3(x, f, z, seed + layer) < 0.5 ? P.greenGlass : P.limeGlass;
+            world.set(x, y - f, z, pick);
+          }
+        }
+      }
+    }
+  }
+  world.protect(cx, cz, radius + 2);
+}
+
+/**
+ * A gothic arch: two fluted piers, a pointed arch between them, and a crown of
+ * spires - the reference's ruined cathedral, built in dark stone with a green
+ * light burning in the opening.
+ */
+export function gothicArch(
+  world: World,
+  cx: number,
+  cz: number,
+  baseY: number,
+  height: number,
+  halfSpan: number,
+  style: { wall: BlockState; trim: BlockState; floor: BlockState },
+  glasses: BlockState[] = VIVID_PRISM,
+  seed = 0xa2c4,
+): void {
+  const top = baseY + height;
+  // Piers: square towers with a fluted face and a banded cornice.
+  for (const side of [-1, 1]) {
+    const px = cx + side * halfSpan;
+    for (let y = baseY; y <= top; y++) {
+      const taper = y > baseY + height * 0.6 ? 1 : 0;
+      const r = halfSpan >= 6 ? 3 - taper : 2;
+      for (let dz = -r; dz <= r; dz++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.abs(dx) === r && Math.abs(dz) === r) continue; // chamfer
+          const x = px + dx;
+          const z = cz + dz;
+          // Flutes: vertical grooves down the face.
+          const flute = dz % 2 === 0 && Math.abs(dx) === r;
+          world.set(x, y, z, flute ? style.trim : y === top ? style.trim : y % 9 === 0 ? style.trim : style.wall);
+        }
+      }
+    }
+    // Spire above each pier.
+    const spireTop = top + Math.round(height * 0.42);
+    for (let y = top + 1; y <= spireTop; y++) {
+      const t = (y - top) / (spireTop - top);
+      const r = Math.max(0, Math.round(3 * (1 - t)));
+      if (r === 0) {
+        world.set(px, y, cz, style.trim);
+        continue;
+      }
+      for (let dz = -r; dz <= r; dz++) {
+        for (let dx = -r; dx <= r; dx++) world.set(px + dx, y, cz + dz, style.wall);
+      }
+    }
+    world.set(px, spireTop + 1, cz, P.glowstone);
+    // Banners of glazing down the inner face of each pier.
+    glassMosaic(world, px - side * 2, baseY + Math.round(height * 0.42), cz, 1, Math.round(height * 0.26), false, glasses, style.trim, seed + side);
+  }
+
+  // The arch itself: a pointed opening spanning pier to pier.
+  const inner = halfSpan - 2;
+  const archY = baseY + Math.round(height * 0.55);
+  for (let x = cx - inner; x <= cx + inner; x++) {
+    const t = Math.abs(x - cx) / Math.max(1, inner);
+    // Pointed profile: a shallow curve rising to a peak at the centre.
+    const rise = Math.round(Math.sqrt(Math.max(0, 1 - t * t)) * height * 0.3);
+    for (let y = archY; y <= archY + rise; y++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        world.set(x, y, cz + dz, (y - archY) === rise ? style.trim : style.wall);
+      }
+    }
+  }
+  // Relieving arch: a second course above the first, tying the piers together.
+  for (let x = cx - inner - 1; x <= cx + inner + 1; x++) {
+    const t = Math.abs(x - cx) / Math.max(1, inner + 1);
+    const rise = Math.round(Math.sqrt(Math.max(0, 1 - t * t)) * height * 0.3);
+    for (let dz = -1; dz <= 1; dz++) {
+      world.set(x, archY + rise + 1, cz + dz, style.trim);
+      world.set(x, archY + rise + 2, cz + dz, style.wall);
+    }
+  }
+
+  // The green light burning in the opening, and the glazing fan above it.
+  for (let x = cx - inner + 2; x <= cx + inner - 2; x++) {
+    for (let y = baseY + 1; y <= archY + 2; y++) {
+      const t = Math.abs(x - cx) / Math.max(1, inner);
+      if (Math.sqrt(Math.max(0, 1 - t * t)) * height * 0.3 < 4) continue;
+      world.set(x, y, cz, (y - baseY) % 5 === 0 ? P.limeGlass : P.greenGlass);
+    }
+  }
+  eyeWindow(world, cx, archY + Math.round(height * 0.16), cz, Math.max(3, inner - 4), 3, true, style.trim, seed, glasses);
+
+  // Floor: a glazed processional way leading under the arch.
+  for (let z = cz - halfSpan - 10; z <= cz + halfSpan + 10; z++) {
+    for (let x = cx - 3; x <= cx + 3; x++) {
+      world.set(x, baseY, z, Math.abs(x - cx) === 3 ? style.floor : (x + z) % 4 === 0 ? P.greenGlass : P.polishedBlackstone);
+    }
+  }
+  world.protect(cx, cz, halfSpan + 12);
+}
+
 export function seaLanternPost(world: World, x: number, z: number, baseY: number, height = 4): void {
   for (let i = 0; i < height; i++) world.set(x, baseY + i, z, P.darkOakLog);
   world.set(x, baseY + height, z, P.seaLantern);
@@ -195,6 +373,12 @@ export function glassTree(
     canopyRadius?: number;
     canopyLayers?: number;
     glassiness?: number;
+    /**
+     * Make the canopy *entirely* glass. The reference's trees are glazed
+     * crowns, not trees with glass in them: no leaf at all, every canopy cell
+     * drawn from the prism, so the crown reads as one hanging sheet of colour.
+     */
+    allGlass?: boolean;
     glasses?: BlockState[];
     leaf?: BlockState;
     seed?: number;
@@ -205,7 +389,8 @@ export function glassTree(
   const trunkRadius = opts.trunkRadius ?? 4;
   const canopyRadius = opts.canopyRadius ?? 13;
   const canopyLayers = opts.canopyLayers ?? 9;
-  const glassiness = opts.glassiness ?? 0.22;
+  const glassiness = opts.allGlass ? 1 : opts.glassiness ?? 0.22;
+  const allGlass = opts.allGlass === true;
   const glasses = opts.glasses ?? PRISM;
   const leaf = opts.leaf ?? P.darkOakLeaves;
   const seed = opts.seed ?? 0x9a11;
@@ -276,7 +461,10 @@ export function glassTree(
         const z = cz + dz;
         // Erode the outer shell so the crown has holes and lumps.
         if (d > 0.55 && hash3(x, y, z, seed + 3) < (d - 0.55) * 0.9) continue;
-        const glass = hash3(x, y, z, seed + 7) < glassiness * (1.25 - d * 0.5);
+        // `allGlass` must be absolute, not a density: the density formula falls
+        // off toward the rim, so a "mostly glass" canopy still dropped leaf on
+        // its outer shell - which is exactly where the silhouette is read.
+        const glass = allGlass || hash3(x, y, z, seed + 7) < glassiness * (1.25 - d * 0.5);
         world.set(x, y, z, glass ? prismAt(glasses, x, y, z, seed) : leaf);
       }
     }

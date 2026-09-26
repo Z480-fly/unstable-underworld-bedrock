@@ -44,9 +44,10 @@ const SIGNATURES: Record<string, string> = {
   citadel: "minecraft:bookshelf",
   portalLobby: "minecraft:portal",
   glassworks: "minecraft:green_stained_glass",
+  cathedral: "minecraft:blue_stained_glass",
   portalField: "minecraft:crying_obsidian",
   endRuin: "minecraft:end_portal",
-  glassGrove: "minecraft:dark_oak_leaves",
+  glassGrove: "minecraft:purple_stained_glass",
 };
 
 interface Row {
