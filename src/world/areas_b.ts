@@ -15,8 +15,9 @@ import {
   tower,
   glazedPanel,
   roseWindow,
+  shopInterior,
 } from "./structures.ts";
-import { glassEyeSpire } from "./structures_end.ts";
+import { glassEyeSpire, eyeOculus, hybridPortal } from "./structures_end.ts";
 import type { World } from "./world.ts";
 
 function rect(x1: number, z1: number, x2: number, z2: number): RectRegion {
@@ -29,10 +30,20 @@ export function buildVillage(world: World): void {
   const level = areaGround(world, LANDMARKS.village.footprint);
   pad(world, rect(cx - 28, cz - 18, cx + 28, cz + 18), level, P.coarseDirt, P.dirt);
   for (let i = 0; i < 6; i++) {
-    house(world, cx - 18 + (i % 3) * 14, cz - 8 + Math.floor(i / 3) * 14, 9, 7, level, 5, style, {
-      face: 2,
-      ruined: i % 2 === 0,
-    });
+    const ruined = i % 2 === 0;
+    const hx = cx - 18 + (i % 3) * 14;
+    const hz = cz - 8 + Math.floor(i / 3) * 14;
+    house(world, hx, hz, 9, 7, level, 5, style, { face: 2, ruined });
+    // Houses that survived get dressed as stalls - shelving, a counter, a
+    // furnace at work. Ruined ones stay empty; there's nothing left to sell.
+    if (!ruined) shopInterior(world, hx, hz, 9, 7, level, style, { face: 2 });
+  }
+  // Two more stalls south of the original row, on the same 14-block grid -
+  // "more buildings" without crowding the existing footprint or the tower.
+  for (const hx of [cx - 18, cx - 4]) {
+    const hz = cz + 14;
+    house(world, hx, hz, 9, 7, level, 5, style, { face: 2, ruined: false });
+    shopInterior(world, hx, hz, 9, 7, level, style, { face: 2 });
   }
   tower(world, cx + 20, cz, 3, level, 12, style, { round: true, crown: true });
 }
@@ -132,6 +143,10 @@ export function buildGlassworks(world: World): void {
   }
   world.set(cx, level + 17, cz, P.glowstone);
 
+  // The color shaft above now has a literal eye looking up at it from the
+  // hall floor - the Soul Keepers' own work, set into the floor they glaze.
+  eyeOculus(world, cx, cz, level, 6, glazing);
+
   glassEyeSpire(world, cx - 32, cz + 8, level + 1, 20);
   glassEyeSpire(world, cx + 32, cz - 6, level + 1, 17);
 
@@ -157,6 +172,10 @@ export function buildPortalField(world: World): void {
       }
     }
   }
+  // One splice that failed the other way: half nether portal, half end
+  // portal, fused at a corrupted seam. South of the grid, clear of all 18
+  // gates above.
+  hybridPortal(world, cx, level + 1, cz + 34, true);
 }
 
 export function buildPortalLobby(world: World): void {

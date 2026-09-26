@@ -1,7 +1,7 @@
 /**
  * End / glass-eye builders (split module so the detail pass can land cleanly).
  */
-import { bs, P } from "./blocks.ts";
+import { bs, P, type BlockState } from "./blocks.ts";
 import type { World } from "./world.ts";
 import { Rng } from "./noise.ts";
 
@@ -78,4 +78,85 @@ export function glassEyeSpire(world: World, cx: number, cz: number, baseY: numbe
   world.set(cx, eyeY - 1, cz, P.seaLantern);
   world.column(cx, cz, eyeY + 5, eyeY + 8, P.cryingObsidian);
   world.set(cx, eyeY + 9, cz, P.endRod);
+}
+
+/**
+ * Flat "eye" oculus: concentric stained-glass iris rings around a literal
+ * pupil (an eyed end-portal frame), glowing from a sea lantern above it.
+ * Horizontal, unlike glassEyeSpire's vertical sphere - use it as a floor
+ * medallion or set into a roof/dome so it reads as an eye looking straight
+ * up or down.
+ */
+export function eyeOculus(
+  world: World,
+  cx: number,
+  cz: number,
+  y: number,
+  radius: number,
+  glasses: BlockState[],
+  frame: BlockState = P.obsidian,
+): void {
+  const pupilR = Math.max(1, Math.round(radius * 0.28));
+  for (let dz = -radius; dz <= radius; dz++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      const d = Math.hypot(dx, dz);
+      if (d > radius) continue;
+      const x = cx + dx;
+      const z = cz + dz;
+      if (d <= pupilR - 1) {
+        world.set(x, y, z, P.obsidian);
+        continue;
+      }
+      if (d <= pupilR || d >= radius - 1) {
+        world.set(x, y, z, frame);
+        continue;
+      }
+      const band = Math.floor(((d - pupilR) / Math.max(0.01, radius - pupilR - 1)) * glasses.length);
+      world.set(x, y, z, glasses[Math.min(glasses.length - 1, Math.max(0, band))]!);
+    }
+  }
+  world.set(cx, y, cz, P.endPortalFrameEye);
+  world.set(cx, y + 1, cz, P.seaLantern);
+}
+
+/**
+ * A portal frame split down the middle: obsidian + a lit nether portal on
+ * one half, an eyed end-portal frame + end_portal on the other, with a
+ * corrupted seam column (alternating crying obsidian / end rod) where the
+ * two halves collide.
+ *
+ * Purely decorative, like every other portal block in the realm - nothing
+ * drives it from a script - and deliberately "wrong": a vertical end-portal
+ * frame never happens in vanilla, which is the point. This is a splice that
+ * failed, not a working dual portal.
+ */
+export function hybridPortal(world: World, cx: number, y: number, cz: number, alongX = true): void {
+  const half = 4;
+  const height = 5;
+  const rng = new Rng((cx * 191 + cz * 733 + y) ^ 0x4a1f);
+  for (let i = -half; i <= half; i++) {
+    const isEndSide = i > 0;
+    const px = alongX ? cx + i : cx;
+    const pz = alongX ? cz : cz + i;
+    for (let j = -1; j <= height; j++) {
+      const py = y + j;
+      if (i === 0) {
+        world.set(px, py, pz, j % 2 === 0 ? P.cryingObsidian : isEndSide ? P.endRod : P.obsidian);
+        continue;
+      }
+      const edge = i === -half || i === half || j === -1 || j === height;
+      if (edge) {
+        world.set(
+          px,
+          py,
+          pz,
+          isEndSide
+            ? bs("minecraft:end_portal_frame", { direction: alongX ? 2 : 1, end_portal_eye_bit: rng.chance(0.6) })
+            : P.obsidian,
+        );
+      } else {
+        world.set(px, py, pz, isEndSide ? P.endPortal : P.portal);
+      }
+    }
+  }
 }

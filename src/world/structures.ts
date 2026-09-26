@@ -562,4 +562,5 @@ export function roseWindow(
   }
 }
 
-export { endGatewayMarker, endPortalPlatform, glassEyeSpire } from "./structures_end.ts";
+export { endGatewayMarker, endPortalPlatform, glassEyeSpire, eyeOculus, hybridPortal } from "./structures_end.ts";
+export { shopInterior } from "./structures_interior.ts";
