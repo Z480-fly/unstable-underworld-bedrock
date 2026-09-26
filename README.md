@@ -198,9 +198,20 @@ Target: **Bedrock 1.26.51** (confirmed against Mojang's own block list as shippe
   `x: i32 LE | z: i32 LE | [dimension] | tag: u8 | [subchunk index: i8]`. Written per chunk:
   `Version 0x2C = 42` (the chunk version iPhone Bedrock 1.26.51 writes on export; 41 was used
   through ~1.21.x), `FinalizedState 0x36 = 2` (fully generated), `Data3D 0x2B` — a 512-byte
-  heightmap plus 25 vertical biome palettes, written for **every** realm chunk so Bedrock treats
-  the chunk as already generated instead of regenerating it — legacy `Data2D 0x2D`, and
-  `SubChunkPrefix 0x2F` records for the subchunks that actually contain blocks.
+  heightmap plus the Overworld's **24** biome storages, bottom subchunk to top, written for
+  **every** realm chunk so Bedrock treats the chunk as already generated instead of regenerating
+  it — the three per-chunk metadata records a 1.26 export carries (`MetaDataHash 0x3F`,
+  `BlendingData 0x40`, `ActorDigestVersion 0x41`), and `SubChunkPrefix 0x2F` records for the
+  subchunks that actually contain blocks. Legacy `Data2D 0x2D` is deliberately **not** written:
+  Bedrock stopped writing it in 1.18.0 and a native 1.26.51 chunk has none.
+* **Chunk metadata** — every chunk stores an 8-byte `MetaDataHash`: the xxHash64 (seed 0) of its
+  metadata NBT, serialized the way the game serializes it (keys recursively sorted, joint
+  little-endian/varint "network" NBT order). The metadata itself lives once, in the world-level
+  `LevelChunkMetaDataDictionary` record (`u32` entry count, then `u64` hash + NBT per entry), and
+  describes the chunk as current and fully migrated — base game version 1.26.51, the extended
+  Overworld height range, and every one-time terrain fix already applied. `BlendingData [0, 8]`
+  says the chunk is not a seamless-blending source; `ActorDigestVersion 0` is the only entity
+  digest format Bedrock has shipped.
 * **Subchunks** — version **9** payload (1.18+): `version, layerCount, subChunkIndex`, then one
   NBT-paletted storage layer (`bitsPerBlock << 1`, packed 32-bit words, palette of
   `{name, states, version}` compounds). Block state names were checked against Bedrock 1.26.51 —
@@ -213,10 +224,10 @@ Target: **Bedrock 1.26.51** (confirmed against Mojang's own block list as shippe
   only symptom is that the imported world is striped with the X and Y axes swapped. `bun run inspect`
   now compares all 2 386 subchunks against a freshly regenerated scene block by block, indexed
   Bedrock's way, so the two can never drift apart again.
-* **Mobile performance** — 756 chunks have content and ~2 386 subchunks are stored (average
-  payload 2.4 KB), subchunks below/above the plate are omitted entirely, there are no block
-  entities, no entities, no ticking systems and no mobs. The whole world is ~1.7 MB, which loads
-  quickly and keeps memory low on a phone.
+* **Mobile performance** — 2 454 subchunks are stored (average payload 2.3 KB), all 1 024 realm
+  chunks carry their Data3D + metadata records, subchunks below/above the plate are omitted
+  entirely, there are no block entities, no entities, no ticking systems and no mobs. The whole
+  world is ~1.8 MB, which loads quickly and keeps memory low on a phone.
 
 If a device ever renders the terrain incorrectly, the serializer has a documented escape hatch:
 `bun run src/build.ts --subchunk-version=8` emits the legacy pre-1.18 paletted payload (modern
@@ -248,8 +259,9 @@ Everything is deterministic: `CONFIG.seed` in `src/world/config.ts` reproduces t
 ### Layout of the source
 
 ```
-src/bedrock/    Bedrock file formats: NBT writer, subchunk serializer, Data3D/Data2D biome
-                writers, LevelDB keys + writer, .mcworld ZIP packer, level.dat builder
+src/bedrock/    Bedrock file formats: NBT writer, subchunk serializer, Data3D biome writer,
+                chunk metadata (hash + dictionary), LevelDB keys + writer, .mcworld ZIP packer,
+                level.dat builder
 src/world/      config.ts (seed, realm, versions)  layout.ts (landmark coordinates, roads,
                 terrain regions)  terrain.ts (heightfield, chasms, lava lake)  structures.ts
                 (towers, curtain walls, keeps, bridges, glass bridges, mazes, terraces)
@@ -281,8 +293,12 @@ Verified programmatically on every build:
 * the `.mcworld` ZIP is well formed (magic, central directory, CRC32s) and contains
   `level.dat`, `levelname.txt`, `world_icon.jpeg` and the `db/` LevelDB files;
 * `level.dat` parses back with the expected values, and the spawn point is on solid ground;
-* the LevelDB contains `Version` + `FinalizedState` + `Data3D` for all 1 024 realm chunks and
-  only non-empty subchunks besides;
+* the LevelDB contains `Version` + `FinalizedState` + `Data3D` + the three metadata records for
+  all 1 024 realm chunks, the `LevelChunkMetaDataDictionary`, and only non-empty subchunks besides;
+* every Data3D payload decodes as 24 uniform biome storages of 632 bytes, reads back through
+  `mcbe-leveldb`, and its heightmap matches the regenerated scene column for column;
+* every `MetaDataHash` equals the recomputed xxHash64 of the metadata, and the dictionary entry it
+  points at is the one a 1.26 client would find;
 * regenerating the scene reproduces every one of the 2 386 written subchunks block for block, with
   the payload read back in Bedrock's own XZY index order — so no written block is rotated, offset or
   dropped on the way from the generator into the file;
@@ -298,14 +314,15 @@ Verified programmatically on every build:
   building.
 
 `bun run inspect` is a real gate, not a diagnostic: it collects every problem it finds and exits
-non-zero if there was any (26 checks on a healthy build). CI runs it on each push.
+non-zero if there was any (39 checks on a healthy build). CI runs it on each push.
 
 Not verifiable here (no Minecraft client in this environment): the final in-game look, and
-whether a specific device build accepts the modern subchunk payload. The Data3D biome payload is
-currently a single uniform biome per chunk (~637 bytes) rather than the ~5 KB layout a native
-1.26.51 export writes; `docs/IOS-1.26-FINDINGS.md` records what a device export looks like, and
-that difference is the main remaining known gap. The `--subchunk-version=8` fallback and
-`docs/map-preview.jpg` exist for the same reason.
+whether a specific device build accepts the modern subchunk payload. The Data3D layout now matches
+a native export (24 biome storages, plus the `MetaDataHash` / `BlendingData` / `ActorDigestVersion`
+records): the phone sample's payload was ~5 KB because its subchunks really hold two biomes each,
+while this world is a single soul-sand-valley biome, so its native encoding is the 632-byte uniform
+form. `docs/IOS-1.26-FINDINGS.md` records both the sample and the resolution. The
+`--subchunk-version=8` fallback and `docs/map-preview.jpg` exist for the same reason.
 
 ### Known gaps versus the original
 

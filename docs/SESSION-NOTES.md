@@ -292,3 +292,35 @@ it changes what the player sees without disturbing the plate's bulk.
 `bun run check` green: **22 tests** (160 expectations), palette OK, 2 386 subchunks round-trip,
 **26/26 inspection checks**, `dist/Underworld-Simulator-Remastered.mcworld` 1.75 MB,
 `docs/map-preview.jpg` regenerated (188 616 B).
+
+---
+
+## The last two format gaps are closed
+
+Both remaining items in `docs/IOS-1.26-FINDINGS.md` are done; the detail lives there. In short:
+
+* **Data3D** was writing **25** biome storages where the Overworld has **24** (384 blocks / 16). The
+  rest of the layout was already right for a single-biome chunk, which is why the payload was ~637
+  bytes; the real encoding is 632 bytes for this world (512-byte heightmap + 24 x `0x01` + i32).
+  The phone sample's ~5252 bytes were not a different structure — they were nine subchunks carrying
+  two biomes each and fifteen `0xFF` "no data" markers. The serializer now implements the whole
+  spec (uniform, palettized and empty storages) and a decoder, so the payload can be checked
+  instead of assumed.
+* **Chunk metadata** (0x3F `MetaDataHash`, 0x40 `BlendingData`, 0x41 `ActorDigestVersion`) is now
+  written on every chunk, together with the `LevelChunkMetaDataDictionary` record the hash points
+  into. The hash is xxHash64 (seed 0) over the metadata NBT in the game's network order with its
+  keys sorted — the recipe Prismarine-Anchor reverse-engineered, whose parser validates it against
+  real worlds. `BlendingData` is `[0, 8]` (not a blending source) and `ActorDigestVersion` is `0`
+  (the only format Bedrock has shipped). Legacy `Data2D`, which a native 1.18+ chunk does not have,
+  is no longer written.
+
+New `src/bedrock/data3d.test.ts` and `src/bedrock/chunk-metadata.test.ts` pin the byte layouts
+(including a hand-written expectation for the network-order hash input and the published XXH64 test
+vector), and both `mcbe-leveldb` parsers read the new payloads back.
+
+### State
+
+`bun run check` green: **37 tests** (260 expectations), palette OK, 2 454 subchunks round-trip,
+**39/39 inspection checks**, Data3D 632 bytes on each of 1 024 chunks, one-entry metadata
+dictionary, `dist/Underworld-Simulator-Remastered.mcworld` 1.84 MB.
+Still unverified here: how it renders on a real iPhone.
