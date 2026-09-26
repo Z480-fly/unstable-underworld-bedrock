@@ -18,9 +18,11 @@ import {
   brokenEndPortal,
   cage,
   curtainWall,
+  eyeOculus,
   glassBridge,
   gatehouse,
   glazedPanel,
+  hybridPortal,
   roseWindow,
   grave,
   house,
@@ -30,6 +32,7 @@ import {
   pad,
   portalFrame,
   ruinedArch,
+  shopInterior,
   statue,
   tower,
   wheatTerraces,
@@ -670,8 +673,8 @@ export function buildVillage(world: World): void {
   const { x: cx, z: cz } = LANDMARKS.village.center;
   const style = STONE_STYLE;
   const level = areaGround(world, LANDMARKS.village.footprint);
-  pad(world, rect(cx - 32, cz - 20, cx + 32, cz + 20), level, P.coarseDirt, P.deepslate, false);
-  world.fill(cx - 32, level, cz - 20, cx + 32, level, cz + 20, P.coarseDirt);
+  pad(world, rect(cx - 32, cz - 20, cx + 32, cz + 28), level, P.coarseDirt, P.deepslate, false);
+  world.fill(cx - 32, level, cz - 20, cx + 32, level, cz + 28, P.coarseDirt);
 
   const rng = new Rng(0x77a1);
   // Main street.
@@ -688,7 +691,11 @@ export function buildVillage(world: World): void {
   ];
   for (const [ox, oz, w, d] of plots) {
     const ruined = rng.chance(0.3);
-    house(world, cx + ox, cz + oz, w, d, level, 5, style, { ruined, face: oz < 0 ? 2 : 3 });
+    const face: 0 | 1 | 2 | 3 = oz < 0 ? 2 : 3;
+    house(world, cx + ox, cz + oz, w, d, level, 5, style, { ruined, face });
+    // Houses that survived get dressed as stalls - shelving, a counter, a
+    // furnace at work. Ruined ones stay empty; there's nothing left to sell.
+    if (!ruined) shopInterior(world, cx + ox, cz + oz, w, d, level, style, { face });
     if (!ruined && rng.chance(0.6)) {
       // small garden / plot
       for (let z = cz + oz - d / 2 - 3; z < cz + oz - d / 2; z++) {
@@ -698,6 +705,14 @@ export function buildVillage(world: World): void {
         }
       }
     }
+  }
+  // Two more stalls south of the row, on the same grid - "more buildings"
+  // without crowding the keep, the well or the existing market street. Their
+  // doors face north, back toward the village.
+  for (const ox of [-18, -4]) {
+    const hz = cz + 20;
+    house(world, cx + ox, hz, 9, 7, level, 5, style, { face: 3, ruined: false });
+    shopInterior(world, cx + ox, hz, 9, 7, level, style, { face: 3 });
   }
   // The village castle: small keep on the north side.
   keep(world, cx + 2, cz - 30, 24, 18, level, 12, style, { bannerColor: P.grayConcrete });
@@ -1043,6 +1058,11 @@ export function buildGlassworks(world: World): void {
     world.disc(cx, cz, r, y, y % 4 === 0 ? P.limeGlass : P.greenGlass);
   }
   world.set(cx, level + 17, cz, P.glowstone);
+
+  // The color shaft above now has a literal eye looking up at it from the
+  // hall floor - the Soul Keepers' own work, set into the floor they glaze.
+  eyeOculus(world, cx, cz, level, 6, glazing);
+
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
       world.set(cx + sx * 4, level + 9, cz + sz * 4, P.hangingSoulLantern);
@@ -1150,6 +1170,10 @@ export function buildPortalField(world: World): void {
   ] as const) {
     cage(world, gx, gz, level + 1, 2);
   }
+  // One splice that failed the other way: half nether portal, half end
+  // portal, fused at a corrupted seam. South of the grid, clear of all 18
+  // gates above.
+  hybridPortal(world, cx, level + 1, cz + 34, true);
 }
 
 // ---------------------------------------------------------------------------

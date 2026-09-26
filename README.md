@@ -89,10 +89,10 @@ roughly 26 blocks thick and tapers into nothing at its edges. North is `-Z`, eas
 | **The Pit / Tomb of the Mage of the Deep** | `-158, -70` | Statue-ringed pit with a spiral ramp, sculk tomb with sensors and shriekers, muffled corridors out, and the lava-trap corridor on the surface. |
 | **The Void Castles** | `-78…-102, 36…42` | Three floating castle islands in the western gulf, each holding an escape room (redstone-lamp floor, flooded maze, copper-bulb and slime floor), linked only by **glass bridges**. |
 | **Maze Valley** | `120, -128` | The valley between two mountains, a gatehouse, and a walled labyrinth with a hidden stair out. |
-| **The Abandoned Village** | `118, -178` | Eight house plots (some ruined), a small keep, wells, gardens, hay, lamps, dead trees. |
+| **The Abandoned Village** | `118, -178` | Eight house plots (some ruined), a small keep, wells, gardens, hay, lamps, dead trees. The houses that survived are dressed as shops - a counter, back-wall shelving and a furnace at work - and two more stalls stand south of the row. |
 | **The Frost Pocket** | `-64, 168` | A bowl of snow, powder snow, ice and blue ice with dead pines and the secret stair in from the tomb. |
-| **The Glassworks** | `188, 226` | The Soul Keepers' glazing hall: a 30 × 60 stained-glass hall in blackstone frames, four full-height window bays a side, a rose window at each gable, a half-collapsed glass roof, a glass bridge and a green glass crystal - and 4 800-odd glass blocks in all. |
-| **The Gate Field** *(cut portals)* | `252, -116` | Eighteen nether portals in three colonnades, each one failed differently: **whole** (frame and lit portal), **cut** (the frame sheared off above head height, only the lower portal left), **collapsed** (jambs and obsidian rubble), plus a ten-wide grand gate. |
+| **The Glassworks** | `188, 226` | The Soul Keepers' glazing hall: a 30 × 60 stained-glass hall in blackstone frames, four full-height window bays a side, a rose window at each gable, a half-collapsed glass roof, a glass bridge and a green glass crystal - and 4 800-odd glass blocks in all. An **eye oculus** is set into the floor beneath the colour shaft: concentric stained-glass iris rings around a pupil of eyed end-portal frame, lit by a sea lantern. |
+| **The Gate Field** *(cut portals)* | `252, -116` | Eighteen nether portals in three colonnades, each one failed differently: **whole** (frame and lit portal), **cut** (the frame sheared off above head height, only the lower portal left), **collapsed** (jambs and obsidian rubble), plus a ten-wide grand gate and a **hybrid portal** - half nether, half End - fused at a corrupted seam south of the grid. |
 | **The End Ruin** | `-246, -170` | The dark end of the realm: an end stone and purpur plaza on an obsidian rim, six obsidian pillars with end-rod crowns, **four broken end portals**, a shard of the End hanging overhead, and the only `end_portal` blocks in the world. |
 
 ### How the areas relate
@@ -134,13 +134,22 @@ east - and three new places stand in it:
   glass bridges; now **every tower and every house in the realm is glazed**, with two blocks of
   stained glass under a stone lintel per opening, and the Glassworks itself carries window bays,
   rose windows, a glazed roof, a glass bridge and a green glass crystal. The world went from a few
-  hundred glass blocks to **4 789** (3 398 of them stained).
+  hundred glass blocks to **4 869** (4 252 of them stained).
 * **The Gate Field** (`252, -116`) - the "cut portals": nether portals that failed mid-frame.
   `portalFrame` grew a `broken` variant for it, and the field shows whole, sheared-off and collapsed
   gates side by side, with obsidian rubble and caged gates taken out of use.
 * **The End Ruin** (`-246, -170`) - the end of the darkening west. `brokenEndPortal()` had been
   written and *never called*, so the map contained no end portal at all; it now has four shattered
   ones, end stone and purpur in an obsidian plaza, end-rod pillars and a shard of the End overhead.
+
+* **Interiors and two failed hybrids.** Every surviving house in the Abandoned Village is now
+dressed as a stall (`shopInterior`) - a counter facing the door, two rows of shelving on the back
+wall, a crafting table and a furnace in a corner, a light overhead - built with `setIfAir` so the
+dressing can never punch through a wall or a doorway, and the Glassworks gets the eye oculus above.
+A *hybrid portal* (`hybridPortal`) sits in the Gate Field: one half obsidian and a lit nether
+portal, the other an eyed end-portal frame and `end_portal`, joined by a corrupted seam column of
+crying obsidian and end rods - a splice that failed the other way, and as purely decorative as
+every other portal in the realm.
 
 These three places are **additions, not reconstructions**: the references describe the Soul Keepers'
 green glazing and the twenty-portal lobby, but not a glazing hall, a gate field or an End ruin. They
@@ -306,7 +315,8 @@ src/bedrock/    Bedrock file formats: NBT writer, subchunk serializer, Data3D bi
 src/world/      config.ts (seed, realm, versions)  layout.ts (landmark coordinates, roads,
                 terrain regions)  terrain.ts (heightfield, chasms, lava lake)  structures.ts
                 (towers, curtain walls, keeps, bridges, glass bridges, glazing panels, rose
-                windows, mazes, terraces)
+                windows, eye oculi, hybrid portals, mazes, terraces)  structures_interior.ts
+                (shop interiors, dressing an existing footprint with setIfAir)
                 areas.ts (the seventeen landmarks)  roads.ts  decorate.ts  icon.ts
                 scene.ts (the generation pipeline, in order)  world.ts (voxel buffer + painting
                 primitives)
