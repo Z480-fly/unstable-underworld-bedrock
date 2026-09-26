@@ -1,105 +1,83 @@
 /**
- * Build entry point.
+ * Build entry: generate the Underworld map, write a Bedrock LevelDB, and
+ * pack it into an importable `.mcworld`.
  *
  *   bun run src/build.ts [--subchunk-version=9] [--no-zip]
- *
- * Generates the whole realm in memory, writes it into a Bedrock LevelDB, and
- * packs `level.dat` + `db/` + the icon into an importable `.mcworld`.
  */
 
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { CHUNK_TAG, BedrockWorldDb } from "./bedrock/world-writer.ts";
+import { mkdir, writeFile, stat, readdir, readFile } from "node:fs/promises";
+import { join, relative } from "node:path";
+import { CONFIG, REALM, CHUNKS_X, CHUNKS_Z } from "./world/config.ts";
+import { buildSceneWorld } from "./world/scene.ts";
+import { renderMapImage } from "./world/icon.ts";
 import { buildLevelDat } from "./bedrock/leveldat.ts";
+import { BedrockWorldDb } from "./bedrock/world-writer.ts";
 import { serializeSubChunk } from "./bedrock/subchunk.ts";
 import { collectChunkHeights, serializeData2D, serializeData3D } from "./bedrock/data3d.ts";
 import { ZipWriter } from "./bedrock/zip.ts";
-import { CONFIG, CHUNKS_X, CHUNKS_Z, REALM } from "./world/config.ts";
-import { renderMapImage } from "./world/icon.ts";
-import { SPAWN } from "./world/layout.ts";
-import { buildSceneWorld } from "./world/scene.ts";
 import type { World } from "./world/world.ts";
 
 interface BuildOptions {
+  worldName: string;
   subChunkVersion: 8 | 9;
   zip: boolean;
-  worldName: string;
 }
 
 function parseArgs(argv: string[]): BuildOptions {
   const options: BuildOptions = {
+    worldName: "Underworld Simulator Remastered",
     subChunkVersion: CONFIG.subChunkVersion,
     zip: true,
-    worldName: "Underworld Simulator Remastered",
   };
   for (const arg of argv) {
     if (arg.startsWith("--subchunk-version=")) {
-      const value = Number(arg.split("=")[1]);
+      const value = Number(arg.slice("--subchunk-version=".length));
       options.subChunkVersion = value === 8 ? 8 : 9;
     } else if (arg === "--no-zip") {
       options.zip = false;
-    } else if (arg.startsWith("--name=")) {
-      options.worldName = arg.split("=").slice(1).join("=");
     }
   }
   return options;
 }
 
-async function listFilesRecursive(directory: string, prefix = ""): Promise<Array<{ path: string; data: Buffer }>> {
-  const entries = await readdir(directory, { withFileTypes: true });
-  const files: Array<{ path: string; data: Buffer }> = [];
-  for (const entry of entries) {
-    const full = join(directory, entry.name);
-    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) {
-      files.push(...(await listFilesRecursive(full, relative)));
-    } else {
-      files.push({ path: relative, data: await readFile(full) });
-    }
-  }
-  return files;
+function findSafeSpawn(world: World): { x: number; y: number; z: number } {
+  // Prefer the Breach center, a little above the surface.
+  const x = 0;
+  const z = 152;
+  const surface = world.surfaceAt(x, z);
+  return { x: x + 0.5, y: surface + 2, z: z + 0.5 };
 }
 
-function findSafeSpawn(world: World): { x: number; y: number; z: number } {
-  const baseX = Math.floor(SPAWN.x);
-  const baseZ = Math.floor(SPAWN.z);
-  for (let radius = 0; radius < 48; radius++) {
-    for (let dz = -radius; dz <= radius; dz++) {
-      for (let dx = -radius; dx <= radius; dx++) {
-        if (Math.max(Math.abs(dx), Math.abs(dz)) !== radius) continue;
-        const x = baseX + dx;
-        const z = baseZ + dz;
-        if (!world.isLand(x, z)) continue;
-        const y = world.surfaceAt(x, z);
-        const ground = world.get(x, y, z);
-        if (!ground || ground.name === "minecraft:air") continue;
-        const above1 = world.get(x, y + 1, z);
-        const above2 = world.get(x, y + 2, z);
-        if (above1 && above1.name !== "minecraft:air") continue;
-        if (above2 && above2.name !== "minecraft:air") continue;
-        return { x, y: y + 1, z };
+async function listFilesRecursive(root: string): Promise<Array<{ path: string; data: Buffer }>> {
+  const out: Array<{ path: string; data: Buffer }> = [];
+  async function walk(dir: string): Promise<void> {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(full);
+      } else {
+        out.push({ path: relative(root, full).replace(/\\/g, "/"), data: await readFile(full) });
       }
     }
   }
-  return { x: baseX, y: world.surfaceAt(baseX, baseZ) + 2, z: baseZ };
+  await walk(root);
+  return out;
 }
 
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const started = performance.now();
-  const buildDir = join(process.cwd(), "build");
-  const worldDir = join(buildDir, "world");
-  const distDir = join(process.cwd(), "dist");
-
-  await rm(worldDir, { recursive: true, force: true });
-  await mkdir(join(worldDir, "db"), { recursive: true });
-  await mkdir(distDir, { recursive: true });
-  await mkdir(join(process.cwd(), "docs"), { recursive: true });
-
-  const log = (message: string): void => {
+  const log = (message: string) => {
     const seconds = ((performance.now() - started) / 1000).toFixed(1);
     console.log(`[${seconds}s] ${message}`);
   };
+
+  const outRoot = join(process.cwd(), "build-output");
+  const worldDir = join(outRoot, "world");
+  const distDir = join(process.cwd(), "dist");
+  await mkdir(worldDir, { recursive: true });
+  await mkdir(distDir, { recursive: true });
+  await mkdir(join(process.cwd(), "docs"), { recursive: true });
 
   const { world } = buildSceneWorld(log);
 
@@ -116,6 +94,10 @@ async function main(): Promise<void> {
   await writeFile(join(worldDir, "level.dat"), levelDat);
   await writeFile(join(worldDir, "levelname.txt"), options.worldName, "utf8");
   await writeFile(join(worldDir, "world_icon.jpeg"), icon);
+  // iOS Bedrock expects these (phone exports write "[]"); missing them can
+  // cause some devices to reject the import.
+  await writeFile(join(worldDir, "world_behavior_packs.json"), "[]", "utf8");
+  await writeFile(join(worldDir, "world_resource_packs.json"), "[]", "utf8");
 
   log("writing chunks to LevelDB...");
   const db = await BedrockWorldDb.open(join(worldDir, "db"));
