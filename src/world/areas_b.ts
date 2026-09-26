@@ -6,8 +6,6 @@ import {
   DEEPSLATE_STYLE,
   STONE_STYLE,
   areaGround,
-  cage,
-  gatehouse,
   house,
   lampPost,
   pad,
@@ -17,7 +15,6 @@ import {
   tower,
   glazedPanel,
   roseWindow,
-  type BuildStyle,
 } from "./structures.ts";
 import { glassEyeSpire } from "./structures_end.ts";
 import type { World } from "./world.ts";
@@ -73,10 +70,6 @@ export function buildAshenReaches(world: World): void {
   const style = BLACKSTONE_STYLE;
   const level = areaGround(world, LANDMARKS.ashenReaches.footprint);
   pad(world, rect(cx - 40, cz - 40, cx + 40, cz + 40), level, P.blackstone, P.netherrack);
-  for (let i = 0; i < 80; i++) {
-    const rng = new Rng(0xa5he + i);
-  }
-  // Lava lake (static)
   for (let z = cz - 16; z <= cz + 16; z++) {
     for (let x = cx - 20; x <= cx + 20; x++) {
       if (Math.hypot(x - cx, z - cz) < 18) world.set(x, level - 1, z, P.lava);
@@ -112,7 +105,6 @@ export function buildGlassworks(world: World): void {
   const height = 18;
   const top = level + height;
 
-  // Hall walls
   for (let z = cz - halfD; z <= cz + halfD; z++) {
     for (let y = level + 1; y <= top; y++) {
       world.set(cx - halfW, y, z, style.wall);
@@ -127,7 +119,6 @@ export function buildGlassworks(world: World): void {
   }
   world.fill(cx - halfW, level, cz - halfD, cx + halfW, level, cz + halfD, style.floor);
 
-  // Glazed panels and rose windows
   for (const z1 of [cz - halfD + 8, cz - 8, cz + 8]) {
     glazedPanel(world, rect(cx - halfW, z1, cx - halfW, z1 + 8), level + 3, top - 4, glazing, frame);
     glazedPanel(world, rect(cx + halfW, z1, cx + halfW, z1 + 8), level + 3, top - 4, glazing, frame);
@@ -135,14 +126,12 @@ export function buildGlassworks(world: World): void {
   roseWindow(world, cx, cz - halfD, level + 13, 8, true, glazing, frame);
   roseWindow(world, cx, cz + halfD, level + 13, 8, true, glazing, frame);
 
-  // Green crystal column
   for (let y = level + 3; y <= level + 16; y++) {
     const r = y % 3 === 0 ? 2 : 1;
     world.disc(cx, cz, r, y, y % 4 === 0 ? P.limeGlass : P.greenGlass);
   }
   world.set(cx, level + 17, cz, P.glowstone);
 
-  // Glass eye spires — the cool ones
   glassEyeSpire(world, cx - 32, cz + 8, level + 1, 20);
   glassEyeSpire(world, cx + 32, cz - 6, level + 1, 17);
 
@@ -155,7 +144,6 @@ export function buildPortalField(world: World): void {
   const { x: cx, z: cz } = LANDMARKS.portalField.center;
   const level = areaGround(world, LANDMARKS.portalField.footprint);
   pad(world, rect(cx - 36, cz - 40, cx + 36, cz + 40), level, P.obsidian, P.blackstone);
-  const rng = new Rng(0x9a7e);
   for (let col = 0; col < 3; col++) {
     for (let row = 0; row < 6; row++) {
       const px = cx - 24 + col * 24;
@@ -164,7 +152,6 @@ export function buildPortalField(world: World): void {
       if (mode === 0) portalFrame(world, px, level + 1, pz, row % 2 === 0, false);
       else if (mode === 1) portalFrame(world, px, level + 1, pz, row % 2 === 0, true);
       else {
-        // collapsed stub
         world.column(px - 2, pz, level + 1, level + 3, P.obsidian);
         world.column(px + 2, pz, level + 1, level + 3, P.cryingObsidian);
       }
