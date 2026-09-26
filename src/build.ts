@@ -5,7 +5,7 @@
  *   bun run src/build.ts [--subchunk-version=9] [--no-zip]
  */
 
-import { mkdir, writeFile, stat, readdir, readFile } from "node:fs/promises";
+import { mkdir, rm, writeFile, stat, readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { CONFIG, REALM, CHUNKS_X, CHUNKS_Z } from "./world/config.ts";
 import { buildSceneWorld } from "./world/scene.ts";
@@ -72,9 +72,14 @@ async function main(): Promise<void> {
     console.log(`[${seconds}s] ${message}`);
   };
 
-  const outRoot = join(process.cwd(), "build-output");
-  const worldDir = join(outRoot, "world");
+  const buildDir = join(process.cwd(), "build");
+  const worldDir = join(buildDir, "world");
   const distDir = join(process.cwd(), "dist");
+  // Start the world dir from scratch: the LevelDB writer opens an existing
+  // database rather than recreating it, so a rebuild without clearing it would
+  // merge stale subchunks into the new world. This dir is also the one
+  // `inspect-world.ts` reads back and `.gitignore` ignores (`build/`).
+  await rm(worldDir, { recursive: true, force: true });
   await mkdir(worldDir, { recursive: true });
   await mkdir(distDir, { recursive: true });
   await mkdir(join(process.cwd(), "docs"), { recursive: true });

@@ -157,13 +157,6 @@ export const LANDMARKS = {
     footprint: { kind: "rect", x1: -182, z1: 118, x2: -134, z2: 162 },
     source: "Twenty portals connecting the Underworld to the Far Lands in every direction.",
   },
-  orbitalStrike: {
-    id: "orbitalStrike",
-    name: "Orbital Strike Platform",
-    center: { x: 170, z: 80 },
-    footprint: { kind: "rect", x1: 140, z1: 50, x2: 200, z2: 110 },
-    source: "Static visual replica of an Orbital Strike cannon platform (Wemmbu / Unstable style).",
-  },
 } as const satisfies Record<string, Landmark>;
 
 export type LandmarkId = keyof typeof LANDMARKS;

@@ -649,7 +649,7 @@ export function buildMazeValley(world: World): void {
   world.fill(cx - 20, Math.min(level, 58) + 12, cz + 40, cx + 20, Math.min(level, 58) + 12, cz + 40, style.wall);
 
   // The labyrinth itself.
-  labyrinth(world, rect(cx - 30, cz - 42, cx + 30, cz - 4), Math.min(level, 58), 6, style, 7);
+  labyrinth(world, rect(cx - 30, cz - 42, cx + 30, cz - 4), Math.min(level, 58), 6, style);
 
   // Hide the exit: a stair up out of the maze to the village road.
   for (let i = 0; i < 6; i++) {
