@@ -21,6 +21,13 @@ export interface BuildStyle {
   floor: BlockState;
   light: BlockState;
   fence?: BlockState;
+  /**
+   * Glazing used for every tower and house window. Defaults to the grey
+   * stained glass, so a style that says nothing still gets glass rather than
+   * bare holes; the Soul Keepers' green is passed in explicitly where canon
+   * puts it.
+   */
+  window?: BlockState;
 }
 
 export const DEEPSLATE_STYLE: BuildStyle = {
@@ -171,16 +178,22 @@ export function tower(
   }
 
   if (opts.windows !== false) {
+    // Stained-glass windows on all four faces, two blocks of glass per opening
+    // under a stone lintel. This is what puts glazing on every tower in the
+    // realm instead of the old iron-bar slits.
     const r = radius;
+    const glazing = style.window ?? P.grayGlass;
     for (let y = baseY + 4; y < top - 6; y += 5) {
-      world.set(cx, y, cz - r, P.ironBars);
-      world.set(cx, y, cz + r, P.ironBars);
-      world.set(cx - r, y, cz, P.ironBars);
-      world.set(cx + r, y, cz, P.ironBars);
-      world.set(cx, y + 1, cz - r, style.accent);
-      world.set(cx, y + 1, cz + r, style.accent);
-      world.set(cx - r, y + 1, cz, style.accent);
-      world.set(cx + r, y + 1, cz, style.accent);
+      for (const [px, pz] of [
+        [cx, cz - r],
+        [cx, cz + r],
+        [cx - r, cz],
+        [cx + r, cz],
+      ] as const) {
+        world.set(px, y, pz, glazing);
+        world.set(px, y + 1, pz, glazing);
+        world.set(px, y + 2, pz, style.accent);
+      }
     }
   }
 
@@ -385,16 +398,20 @@ export function house(
   }
 
   const face = opts.face ?? 2;
+  // Glazed windows: two blocks of stained glass under a lintel, on both long
+  // walls and both gable ends.
+  const glazing = style.window ?? P.glass;
+  const upper = baseY + 3 < top ? glazing : style.trim;
   for (let z = cz - hd + 2; z <= cz + hd - 2; z += 3) {
     for (const x of [cx - hw, cx + hw]) {
-      world.set(x, baseY + 2, z, P.glass);
-      world.set(x, baseY + 3, z, style.trim);
+      world.set(x, baseY + 2, z, glazing);
+      world.set(x, baseY + 3, z, upper);
     }
   }
   for (let x = cx - hw + 2; x <= cx + hw - 2; x += 3) {
     for (const z of [cz - hd, cz + hd]) {
-      world.set(x, baseY + 2, z, P.glass);
-      world.set(x, baseY + 3, z, style.trim);
+      world.set(x, baseY + 2, z, glazing);
+      world.set(x, baseY + 3, z, upper);
     }
   }
   const dx = face === 0 ? 1 : face === 1 ? -1 : 0;
@@ -639,5 +656,71 @@ export function wheatTerraces(
       }
     }
     world.set(rect.x1 - 2, level + (rows - 1 - r) + 1, z1, P.hayBlock);
+  }
+}
+
+/**
+ * A glazed panel: a band of stained glass set in a stone frame, one block thick.
+ *
+ * `rect` must be a straight run in plan (either `x1 === x2` or `z1 === z2`),
+ * which is how every wall in the map is laid out. The glass is picked per cell
+ * from `glasses`, so a long window band reads as mottled glazing rather than a
+ * flat sheet of one colour, and the whole panel is outlined in `frame`.
+ */
+export function glazedPanel(
+  world: World,
+  rect: RectRegion,
+  y1: number,
+  y2: number,
+  glasses: BlockState[],
+  frame: BlockState,
+): void {
+  const alongX = rect.z1 === rect.z2;
+  const length = alongX ? rect.x2 - rect.x1 : rect.z2 - rect.z1;
+  for (let i = 0; i <= length; i++) {
+    const x = alongX ? rect.x1 + i : rect.x1;
+    const z = alongX ? rect.z1 : rect.z1 + i;
+    for (let y = y1; y <= y2; y++) {
+      const border = i === 0 || i === length || y === y1 || y === y2;
+      world.set(
+        x,
+        y,
+        z,
+        border ? frame : glasses[(((i * 3 + y * 5) % glasses.length) + glasses.length) % glasses.length]!,
+      );
+    }
+  }
+}
+
+/**
+ * A rose window: a circular stained-glass window standing in a vertical plane.
+ *
+ * `alongX` places the circle in the X/Y plane (a window in a north-south wall);
+ * otherwise it stands in the Z/Y plane. The rim and the hub are the frame, the
+ * rest is glazing.
+ */
+export function roseWindow(
+  world: World,
+  cx: number,
+  cz: number,
+  y: number,
+  radius: number,
+  alongX: boolean,
+  glasses: BlockState[],
+  frame: BlockState,
+): void {
+  for (let dx = -radius; dx <= radius; dx++) {
+    for (let dy = -radius; dy <= radius; dy++) {
+      const d = Math.hypot(dx, dy);
+      if (d > radius) continue;
+      const x = alongX ? cx + dx : cx;
+      const z = alongX ? cz : cz + dx;
+      const py = y + dy;
+      if (d > radius - 1 || d < 1.2) {
+        world.set(x, py, z, frame);
+      } else {
+        world.set(x, py, z, glasses[(((dx * 31 + dy * 17) % glasses.length) + glasses.length) % glasses.length]!);
+      }
+    }
   }
 }

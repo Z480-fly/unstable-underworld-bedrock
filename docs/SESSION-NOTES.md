@@ -12,6 +12,21 @@ Playable Unstable Underworld reconstruction on **Minecraft Bedrock 1.26.51 iPhon
 5. Added **Data3D + Data2D** for all chunks — still failed on device.
 6. User could not upload zip in chat; shared **phone-native world** via Drive.
 7. Diff vs phone export found real format gaps (see `docs/IOS-1.26-FINDINGS.md`).
+8. Format work landed (PR #5): Data3D rewritten to the native 24-slice layout, the per-chunk
+   `MetaDataHash` / `BlendingData` / `ActorDigestVersion` records and the world-level
+   `LevelChunkMetaDataDictionary` added, legacy Data2D dropped.
+9. **Content pass** (the map itself, not the format):
+   * realm expanded **512 × 512 → 704 × 704** (radius 220 → 300) with new terrain regions
+     (southern range, east highlands, north basin, far-west spine) and three new chasms;
+   * stained-glass windows on **every** tower and house (was iron-bar slits);
+   * **the Glassworks** (`188, 226`) - a 30 × 60 hall of stained glass with glazed bays, rose
+     windows, a half-collapsed glass roof, a glass bridge and a green glass crystal;
+   * **the Gate Field** (`252, -116`) - eighteen nether portals in whole / **cut** / collapsed
+     states, plus a ten-wide grand gate;
+   * **the End Ruin** (`-246, -170`) - four broken end portals (`brokenEndPortal()` had been
+     written and never called, so the map had no end portal at all), end stone / purpur plaza,
+     end-rod pillars, a shard of the End overhead.
+   Now 17 landmarks, 1 936 chunks, 4 808 subchunks, ~3.7 MB; `bun run check` green.
 
 ## Files saved this session
 

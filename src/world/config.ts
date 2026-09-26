@@ -1,11 +1,16 @@
 /**
  * Central build configuration: world size, versions and seeds.
  *
- * Sizing note (iPhone / mobile performance): the realm is 32x32 chunks
- * (512x512 blocks) with a compact 0..127 vertical range and only the subchunks
+ * Sizing note (iPhone / mobile performance): the realm is 44x44 chunks
+ * (704x704 blocks) with a compact 0..127 vertical range and only the subchunks
  * that actually contain blocks are written, so the resulting world stays small
  * and loads quickly on a phone. The original Java simulators are ~6 GB; this
  * reconstruction targets single-digit megabytes.
+ *
+ * The realm was expanded from 512x512 (radius 220) to 704x704 (radius 300) so
+ * the outer ring - the far east highlands, the southern range, the dark far
+ * north-west - carries land of its own instead of void, which is where the
+ * Gate Field, the Glassworks and the End Ruin were placed.
  */
 
 export interface RealmBounds {
@@ -42,15 +47,15 @@ export const CONFIG = {
   maxY: 127,
 
   /**
-   * Realm footprint in chunks (512 x 512 blocks). Big enough that every
+   * Realm footprint in chunks (704 x 704 blocks). Big enough that every
    * landmark sits well inside the plate with a rim of void around it - the
-   * island itself covers roughly 150k of the 262k columns.
+   * island itself covers roughly 317k of the 495k columns.
    */
   realm: {
-    minChunkX: -16,
-    maxChunkX: 15,
-    minChunkZ: -16,
-    maxChunkZ: 15,
+    minChunkX: -22,
+    maxChunkX: 21,
+    minChunkZ: -22,
+    maxChunkZ: 21,
   } satisfies RealmBounds,
 
   /** Terrain shaping. */
@@ -58,11 +63,11 @@ export const CONFIG = {
     /** Base surface height of the wasteland plain. */
     baseHeight: 46,
     /** How thick the floating plate is before it tapers into void. */
-    plateDepth: 24,
+    plateDepth: 26,
     /** Amplitude of rolling wasteland relief (raised slightly for more character). */
-    reliefAmplitude: 8,
+    reliefAmplitude: 9,
     /** Landmass radius (blocks) of the main realm. */
-    realmRadius: 220,
+    realmRadius: 300,
     /** The void gulf west of the Center, crossed only by glass bridges. */
     voidGulf: { minX: -108, maxX: -72 },
     /**

@@ -71,9 +71,9 @@ Useful quotes the reconstruction leans on:
 
 ## The map
 
-Realm footprint: **512 × 512 blocks** (32 × 32 chunks), centred on `0,0`, floating in the void.
-Surface heights run from **y≈21 to y≈91**; the plate is roughly 20–30 blocks thick and tapers
-into nothing at its edges. North is `-Z`, east is `+X`.
+Realm footprint: **704 × 704 blocks** (44 × 44 chunks), centred on `0,0`, floating in the void —
+316 764 of its 495 616 columns are land. Surface heights run from **y≈18 to y≈91**; the plate is
+roughly 26 blocks thick and tapers into nothing at its edges. North is `-Z`, east is `+X`.
 
 | Landmark | Centre (x, z) | What it is |
 | --- | --- | --- |
@@ -91,6 +91,9 @@ into nothing at its edges. North is `-Z`, east is `+X`.
 | **Maze Valley** | `120, -128` | The valley between two mountains, a gatehouse, and a walled labyrinth with a hidden stair out. |
 | **The Abandoned Village** | `118, -178` | Eight house plots (some ruined), a small keep, wells, gardens, hay, lamps, dead trees. |
 | **The Frost Pocket** | `-64, 168` | A bowl of snow, powder snow, ice and blue ice with dead pines and the secret stair in from the tomb. |
+| **The Glassworks** | `188, 226` | The Soul Keepers' glazing hall: a 30 × 60 stained-glass hall in blackstone frames, four full-height window bays a side, a rose window at each gable, a half-collapsed glass roof, a glass bridge and a green glass crystal - and 4 800-odd glass blocks in all. |
+| **The Gate Field** *(cut portals)* | `252, -116` | Eighteen nether portals in three colonnades, each one failed differently: **whole** (frame and lit portal), **cut** (the frame sheared off above head height, only the lower portal left), **collapsed** (jambs and obsidian rubble), plus a ten-wide grand gate. |
+| **The End Ruin** | `-246, -170` | The dark end of the realm: an end stone and purpur plaza on an obsidian rim, six obsidian pillars with end-rod crowns, **four broken end portals**, a shard of the End hanging overhead, and the only `end_portal` blocks in the world. |
 
 ### How the areas relate
 
@@ -118,6 +121,32 @@ Atmosphere is entirely block-built: soul lanterns and soul fire, crying obsidian
 sand/soil flats, obsidian cairns along the void rim, grave lanterns, and a permanently dark sky
 (`Time 18000`, `dodaylightcycle 0`). Nothing else was added.
 
+### The outer ring
+
+The realm was first built at 512 × 512 (radius 220) and every landmark sat inside ±200, so the map
+had no land beyond the old rim. It is now **704 × 704** (radius 300): the plate carries an outer ring
+of terrain of its own - a southern range, east highlands, a northern basin and a far-western spine,
+plus a southern canyon, a second void fracture west of the Citadel and a dry ravine across the
+east - and three new places stand in it:
+
+* **The Glassworks** (`188, 226`) - the hall the Soul Keepers' glazing is made in. The map had
+  stained glass only as two grey chapel windows, a ring of green on a handful of towers and the
+  glass bridges; now **every tower and every house in the realm is glazed**, with two blocks of
+  stained glass under a stone lintel per opening, and the Glassworks itself carries window bays,
+  rose windows, a glazed roof, a glass bridge and a green glass crystal. The world went from a few
+  hundred glass blocks to **4 789** (3 398 of them stained).
+* **The Gate Field** (`252, -116`) - the "cut portals": nether portals that failed mid-frame.
+  `portalFrame` grew a `broken` variant for it, and the field shows whole, sheared-off and collapsed
+  gates side by side, with obsidian rubble and caged gates taken out of use.
+* **The End Ruin** (`-246, -170`) - the end of the darkening west. `brokenEndPortal()` had been
+  written and *never called*, so the map contained no end portal at all; it now has four shattered
+  ones, end stone and purpur in an obsidian plaza, end-rod pillars and a shard of the End overhead.
+
+These three places are **additions, not reconstructions**: the references describe the Soul Keepers'
+green glazing and the twenty-portal lobby, but not a glazing hall, a gate field or an End ruin. They
+extend what the sources imply rather than contradict them (same palette, same masonry, same
+atmosphere), and everything else in the map is unchanged.
+
 ### The wasteland between the set pieces
 
 Two things the references describe as defining the place, and which the map therefore spends the
@@ -126,27 +155,28 @@ most effort on:
 * **"An endless plain of broken structures."** The detail pass (`src/world/decorate.ts`) covers every
   stretch of wilderness with half-buried masonry - wall stubs eroded to nothing at both ends, ruined
   tower stumps tall on one side and collapsed on the other, fallen columns, rubble fields and broken
-  gate frames with the span fallen in. **About 8.7 % of the plain now carries standing ruin**
+  gate frames with the span fallen in. **About 12 % of the plain now carries standing ruin**
   (`bun run audit` prints the figure). It is deliberately excluded from landmark footprints and from
   protected pads and roads, so it can never grow through a building or cut a path.
 
   The pass (and `bun run audit` with it) spans the **whole realm**. It did not always: every detail
-  loop used to stop on a tidy ±190 square while the plate reaches ±220, so a 30-block band around
-  the entire edge - 23 663 walkable columns - carried no ruin, no boulders and no cracks at all,
-  exactly where the references put the most broken ground. A test now holds detail coverage on the
-  outer band, not just the middle.
+  loop used to stop on a tidy ±190 square while the plate reaches ±300, so a band a hundred blocks
+  deep around the entire edge carried no ruin, no boulders and no cracks at all, exactly where the
+  references put the most broken ground. A test now holds detail coverage on the outer band, not just
+  the middle.
 * **"Cracks of void forming on the ground", "sometimes these barren wastelands fracture to void."**
   A second pass carves long, thin, wandering fractures into the plate. Half of them are shallow
   seams floored with magma and obsidian; the other half tear **clean through the plate and open onto
-  the void** - 45 of the 512 × 512 columns are a hole you can drop through, 1-2 blocks across and
+  the void** - 52 of the 704 × 704 columns are a hole you can drop through, 1-2 blocks across and
   edged with obsidian and crying obsidian so the break reads as torn rock rather than a clean cut.
   A crack is *walked* across the plate and then carved, skipping the cells it must not cut, so it
   crosses the map instead of stopping at the first paved road; whatever it opens is marked void and
   protected so no later pass tries to build on thin air.
-* **The rim sheds.** The plate does not end in a clean cut. Just clear of the edge, chunks of the
-  plate's own rock drift in the void, and teeth of obsidian (with the odd crying-obsidian tip) hang
-  off the torn underside - the same "fracture to void" seen from the void side, so the realm reads
-  as an island coming apart rather than a floating rectangle with a tidy border.
+* **The rim sheds.** The plate does not end in a clean cut. 5 225 columns just clear of the edge
+  carry material the plate has torn loose: chunks of its own rock drift in the void (some of them
+  still wearing a pane of Soul Keeper glazing), and teeth of obsidian with the odd crying-obsidian
+  tip hang off the torn underside - the same "fracture to void" seen from the void side, so the
+  realm reads as an island coming apart rather than a floating rectangle with a tidy border.
 
 ### No falling blocks, and where the green went
 
@@ -155,9 +185,17 @@ only vibrant color being the green visible on some structures"*:
 
 * the **ground is gray and black**: deepslate (51 %), tuff (21 %, the old gravel shading), blackstone
   (6 %), basalt, cobbled deepslate, obsidian, soul sand/soil;
-* the **green is green stained glass, and it is on structures** - the Soul Keepers' tower windows at
-  the Breach, the Withered Castle's corner towers, the Citadel, the void castles, the Portal Lobby
-  guard posts, and the parkour course in the void castles' escape room.
+* the **green is stained glass, and it is on structures** - the Soul Keepers' tower windows at the
+  Breach, the Withered Castle's corner towers, the Citadel, the void castles, the Portal Lobby guard
+  posts, and the parkour course in the void castles' escape room.
+
+  Glazing is a first-class material rather than a one-off: `tower()` and `house()` put two blocks of
+  stained glass under a stone lintel in every opening on every building in the realm, the
+  Glassworks is a long hall of it (bays, rose windows, a glazed roof, a glass bridge and a green
+  glass crystal), and the void rim sheds shards that still carry a pane. The palette holds glass in
+  plain, tinted, grey, light grey, white, black, light blue, cyan, purple, green and lime, plus
+  panes in plain, grey, white, light blue, green and black - **4 789 glass blocks in all, 3 398 of
+  them stained**.
 
 Gravel, sand and concrete powder are Bedrock's *gravity* blocks: in a world placed block-by-block
 they drop out of the terrain, leave holes in the plate and re-trigger the fall loop, which is what
@@ -171,8 +209,11 @@ accident, and `bun run inspect` fails the build if one ever reaches a subchunk p
 ## What is deliberately not here
 
 No simulator logic, no lobby world, no UI or menus, no NPC/bot entities, no combat mechanics, no
-kits, no loot or resource packs, no behavior packs, no commands or functions, no portal logic,
-no scoreboards and no mobs (`domobspawning 0`). Every block in the realm is placed by the
+kits, no loot or resource packs, no behavior packs, no commands or functions, no *scripted* portal
+logic, no scoreboards and no mobs (`domobspawning 0`). The portal **blocks** are real (the twenty
+frames of the Portal Lobby, the hidden vault in the Ruined Castle, the grand gate in the Gate Field
+and the four shattered rings of the End Ruin), so they link and teleport exactly as the originals
+do; nothing drives them from a script. Every block in the realm is placed by the
 generator; nothing is left to the game's own world generation (the world is a **void flat world**,
 so ungenerated space is nothing at all — which is what makes the "world within the void" reading
 work).
@@ -222,12 +263,12 @@ Target: **Bedrock 1.26.51** (confirmed against Mojang's own block list as shippe
   transposes while it copies. This is worth calling out because writing the buffer order into the
   payload looks completely harmless — the payload still parses, the palette is still valid — and the
   only symptom is that the imported world is striped with the X and Y axes swapped. `bun run inspect`
-  now compares all 2 386 subchunks against a freshly regenerated scene block by block, indexed
+  now compares all 4 808 subchunks against a freshly regenerated scene block by block, indexed
   Bedrock's way, so the two can never drift apart again.
-* **Mobile performance** — 2 454 subchunks are stored (average payload 2.3 KB), all 1 024 realm
-  chunks carry their Data3D + metadata records, subchunks below/above the plate are omitted
-  entirely, there are no block entities, no entities, no ticking systems and no mobs. The whole
-  world is ~1.8 MB, which loads quickly and keeps memory low on a phone.
+* **Mobile performance** — 4 808 subchunks are stored, all 1 936 realm chunks carry their Data3D +
+  metadata records, subchunks below/above the plate are omitted entirely, there are no block
+  entities, no entities, no ticking systems and no mobs. The whole world is ~3.7 MB, which loads
+  quickly and keeps memory low on a phone.
 
 If a device ever renders the terrain incorrectly, the serializer has a documented escape hatch:
 `bun run src/build.ts --subchunk-version=8` emits the legacy pre-1.18 paletted payload (modern
@@ -240,10 +281,10 @@ clients upgrade it on load) instead of version 9.
 ```bash
 bun install
 
-bun run build:map        # generate dist/*.mcworld + docs/map-preview.jpg  (~2 s)
+bun run build:map        # generate dist/*.mcworld + docs/map-preview.jpg  (~5 s)
 bun run inspect          # read the world back: keys, subchunk round-trip, level.dat, zip
 bun run typecheck        # tsc -b --noEmit
-bun test                 # 22 tests: serializer, zip, palette, terrain, landmarks, level.dat
+bun test                 # 37 tests: serializer, zip, metadata, palette, terrain, landmarks
 bun run validate         # every block state vs Bedrock 1.26.51
 bun run map              # ASCII map of the realm for layout checks
 bun run audit            # per-landmark audit: did each one actually build something?
@@ -264,8 +305,9 @@ src/bedrock/    Bedrock file formats: NBT writer, subchunk serializer, Data3D bi
                 level.dat builder
 src/world/      config.ts (seed, realm, versions)  layout.ts (landmark coordinates, roads,
                 terrain regions)  terrain.ts (heightfield, chasms, lava lake)  structures.ts
-                (towers, curtain walls, keeps, bridges, glass bridges, mazes, terraces)
-                areas.ts (the fourteen landmarks)  roads.ts  decorate.ts  icon.ts
+                (towers, curtain walls, keeps, bridges, glass bridges, glazing panels, rose
+                windows, mazes, terraces)
+                areas.ts (the seventeen landmarks)  roads.ts  decorate.ts  icon.ts
                 scene.ts (the generation pipeline, in order)  world.ts (voxel buffer + painting
                 primitives)
 src/tools/      inspect-world.ts, map-ascii.ts, landmark-audit.ts, validate-palette.ts
@@ -294,19 +336,19 @@ Verified programmatically on every build:
   `level.dat`, `levelname.txt`, `world_icon.jpeg` and the `db/` LevelDB files;
 * `level.dat` parses back with the expected values, and the spawn point is on solid ground;
 * the LevelDB contains `Version` + `FinalizedState` + `Data3D` + the three metadata records for
-  all 1 024 realm chunks, the `LevelChunkMetaDataDictionary`, and only non-empty subchunks besides;
+  all 1 936 realm chunks, the `LevelChunkMetaDataDictionary`, and only non-empty subchunks besides;
 * every Data3D payload decodes as 24 uniform biome storages of 632 bytes, reads back through
   `mcbe-leveldb`, and its heightmap matches the regenerated scene column for column;
 * every `MetaDataHash` equals the recomputed xxHash64 of the metadata, and the dictionary entry it
   points at is the one a 1.26 client would find;
-* regenerating the scene reproduces every one of the 2 386 written subchunks block for block, with
+* regenerating the scene reproduces every one of the 4 808 written subchunks block for block, with
   the payload read back in Bedrock's own XZY index order — so no written block is rotated, offset or
   dropped on the way from the generator into the file;
 * not a single gravity block (gravel, sand, concrete powder) reached the world, checked in every
   subchunk palette;
 * terrain generation is deterministic, every landmark lands on solid ground, and every one of the
-  fourteen landmarks places its signature geometry (`bun run audit` prints the counts);
-* the plate is actually torn: 45 columns open through it into the void, the rim hangs masonry into
+  seventeen landmarks places its signature geometry (`bun run audit` prints the counts);
+* the plate is actually torn: 52 columns open through it into the void, the rim hangs masonry into
   the void beside it, and the outer band of the plate carries the same density of ruin as the middle
   (all three are asserted in `bun test`, because all three were quietly false before);
 * the wasteland really does darken toward the End: the far-west ground is more than twice as black as

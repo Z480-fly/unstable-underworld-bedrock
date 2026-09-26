@@ -17,7 +17,7 @@
  *    rooms linked by glass bridges, darkening toward the End) and ends at the
  *    Citadel - the great library at the far west.
  *
- * Axes: +X = east, +Z = south. The realm is 384x384 blocks centred on 0,0.
+ * Axes: +X = east, +Z = south. The realm is 704x704 blocks centred on 0,0.
  */
 
 export interface Point {
@@ -157,6 +157,30 @@ export const LANDMARKS = {
     footprint: { kind: "rect", x1: -182, z1: 118, x2: -134, z2: 162 },
     source: "Twenty portals connecting the Underworld to the Far Lands in every direction.",
   },
+  glassworks: {
+    id: "glassworks",
+    name: "The Glassworks - the Soul Keepers' glazing hall",
+    center: { x: 188, z: 226 },
+    footprint: { kind: "rect", x1: 150, z1: 188, x2: 226, z2: 264 },
+    source:
+      "Where the Soul Keeper glazing is made - canon: 'almost everything is gray or black, with really the only vibrant color being the green visible on some structures'.",
+  },
+  portalField: {
+    id: "portalField",
+    name: "The Gate Field - the cut portals",
+    center: { x: 252, z: -116 },
+    footprint: { kind: "rect", x1: 210, z1: -168, x2: 294, z2: -64 },
+    source:
+      "The field of gates east of the labyrinth: portals cut short, sheared off mid-frame and collapsed where the Underworld's links failed.",
+  },
+  endRuin: {
+    id: "endRuin",
+    name: "The End Ruin",
+    center: { x: -246, z: -170 },
+    footprint: { kind: "rect", x1: -290, z1: -214, x2: -202, z2: -126 },
+    source:
+      "'The sky and void grow increasingly darker as the proximity to the end shortens' - the shattered end portals at the dark end of the realm.",
+  },
 } as const satisfies Record<string, Landmark>;
 
 export type LandmarkId = keyof typeof LANDMARKS;
@@ -212,6 +236,16 @@ export const TERRAIN_REGIONS: TerrainRegion[] = [
   { id: "eastWastes", shape: { kind: "circle", x: 80, z: 100, radius: 36 }, heightDelta: 4, relief: 1.2 },
   // Slight rise west of Ruins for more silhouette against the void gulf.
   { id: "ruinsRidge", shape: { kind: "circle", x: 20, z: -40, radius: 28 }, heightDelta: 5, relief: 1.15, ridged: true },
+  // --- the outer ring ------------------------------------------------------------------
+  // The realm was expanded to 704x704 (radius 300); these shape the land that used to be
+  // void, so the new ground reads as terrain rather than a flat extension of the old plate.
+  { id: "southRange", shape: { kind: "circle", x: 30, z: 272, radius: 56 }, heightDelta: 18, relief: 1.25, ridged: true },
+  { id: "eastHighlands", shape: { kind: "circle", x: 276, z: 64, radius: 58 }, heightDelta: 10, relief: 1.2, ridged: true },
+  { id: "northBasin", shape: { kind: "circle", x: -46, z: -274, radius: 62 }, heightDelta: -8, relief: 0.6 },
+  { id: "glassworksRise", shape: { kind: "circle", x: 188, z: 226, radius: 52 }, heightDelta: 4, relief: 0.6 },
+  { id: "gateFieldFlats", shape: { kind: "circle", x: 252, z: -116, radius: 58 }, heightDelta: 2, relief: 0.75 },
+  { id: "endRuinPlateau", shape: { kind: "rect", x1: -296, z1: -222, x2: -196, z2: -118 }, heightDelta: 5, relief: 0.45 },
+  { id: "farWestSpine", shape: { kind: "rect", x1: -320, z1: 0, x2: -232, z2: 150 }, heightDelta: 12, relief: 1.3, ridged: true },
 ];
 
 export interface RoadPath {
@@ -339,6 +373,31 @@ export const ROADS: RoadPath[] = [
     from: { x: -28, z: 176 },
     to: { x: 100, z: 152 },
     via: [{ x: 30, z: 180 }],
+    width: 1,
+    style: "path",
+  },
+  // The three landmarks of the expanded outer ring.
+  {
+    id: "glassworksRoad",
+    from: { x: 112, z: 40 },
+    to: LANDMARKS.glassworks.center,
+    via: [{ x: 150, z: 140 }],
+    width: 1,
+    style: "path",
+  },
+  {
+    id: "gateFieldRoad",
+    from: LANDMARKS.mazeValley.center,
+    to: LANDMARKS.portalField.center,
+    via: [{ x: 190, z: -120 }],
+    width: 1,
+    style: "path",
+  },
+  {
+    id: "endRuinRoad",
+    from: LANDMARKS.tomb.center,
+    to: LANDMARKS.endRuin.center,
+    via: [{ x: -210, z: -124 }],
     width: 1,
     style: "path",
   },

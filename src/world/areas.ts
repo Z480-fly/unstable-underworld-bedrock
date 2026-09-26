@@ -15,10 +15,13 @@ import {
   STONE_STYLE,
   areaGround,
   bridge,
+  brokenEndPortal,
   cage,
   curtainWall,
   glassBridge,
   gatehouse,
+  glazedPanel,
+  roseWindow,
   grave,
   house,
   keep,
@@ -961,6 +964,282 @@ export function buildRuinedCastle(world: World): void {
 }
 
 // ---------------------------------------------------------------------------
+// 15. The Glassworks - the Soul Keepers' glazing hall
+// ---------------------------------------------------------------------------
+
+/**
+ * Where the Soul Keepers' glazing comes from.
+ *
+ * Canon keeps the palette grey and black, with "the green visible on some
+ * structures" as the only vibrant colour, so this is the place that green is
+ * made: a long hall of stained glass set in blackstone frames, the roof half
+ * fallen in, a rose window at each gable and a green glass crystal over the
+ * furnace at its heart. It is also the map's glass set piece - the window
+ * bands, the roof, the crystal and the cullet on the floor are all glazing.
+ */
+export function buildGlassworks(world: World): void {
+  const { x: cx, z: cz } = LANDMARKS.glassworks.center;
+  const style = BLACKSTONE_STYLE;
+  const level = areaGround(world, LANDMARKS.glassworks.footprint);
+  pad(world, rect(cx - 36, cz - 42, cx + 36, cz + 42), level, P.polishedBlackstone, P.deepslate);
+
+  const glazing = [P.greenGlass, P.limeGlass, P.cyanGlass, P.lightBlueGlass, P.whiteGlass, P.grayGlass];
+  const panes = [P.greenGlassPane, P.whiteGlassPane, P.lightBlueGlassPane, P.grayGlassPane];
+  const frame = P.polishedBlackstone;
+  const halfW = 15;
+  const halfD = 30;
+  const height = 21;
+  const top = level + height;
+  const rng = new Rng(0x91a5);
+
+  // Floor, shell, and stonework banding above the glazing.
+  world.fill(cx - halfW, level, cz - halfD, cx + halfW, level, cz + halfD, P.deepslateTiles);
+  world.rectWalls(cx - halfW, cz - halfD, cx + halfW, cz + halfD, level + 1, top, style.wall);
+
+  // Window bays: four along each long wall, full height, in a stone frame.
+  for (let bay = 0; bay < 4; bay++) {
+    const z1 = cz - halfD + 4 + bay * 14;
+    glazedPanel(world, rect(cx - halfW, z1, cx - halfW, z1 + 8), level + 3, top - 4, glazing, frame);
+    glazedPanel(world, rect(cx + halfW, z1, cx + halfW, z1 + 8), level + 3, top - 4, glazing, frame);
+  }
+
+  // Gable ends: a rose window over a pair of lesser windows.
+  roseWindow(world, cx, cz - halfD, level + 13, 8, true, glazing, frame);
+  roseWindow(world, cx, cz + halfD, level + 13, 8, true, glazing, frame);
+  for (const gz of [cz - halfD, cz + halfD]) {
+    glazedPanel(world, rect(cx - 10, gz, cx - 3, gz), level + 3, level + 9, glazing, frame);
+    glazedPanel(world, rect(cx + 3, gz, cx + 10, gz), level + 3, level + 9, glazing, frame);
+  }
+
+  // The roof: a glazed ridge, deliberately collapsed over the north end.
+  for (let step = 0; step <= halfW; step++) {
+    const y = top + Math.min(step, Math.round(halfW / 2));
+    for (let z = cz - halfD; z <= cz + halfD; z++) {
+      if (z < cz - 6 && rng.chance(0.45)) continue;
+      const glass = step % 2 === 0 ? glazing[0]! : panes[step % panes.length]!;
+      world.set(cx - halfW + step, y, z, glass);
+      world.set(cx + halfW - step, y, z, glass);
+    }
+  }
+  for (let z = cz - halfD; z <= cz + halfD; z += 4) {
+    world.set(cx, top + Math.round(halfW / 2) + 1, z, frame);
+  }
+
+  // Interior: a glass bridge, the furnace, and the green crystal over it.
+  const bridgeY = level + 11;
+  for (const bx of [cx - 8, cx + 8]) {
+    for (let z = cz - halfD + 6; z <= cz + halfD - 6; z++) {
+      world.set(bx, bridgeY, z, ((z >> 1) & 1) === 0 ? P.glass : frame);
+      world.set(bx, bridgeY + 1, z, ((z >> 1) & 1) === 0 ? P.greenGlassPane : AIR);
+    }
+  }
+  for (let i = 0; i < 6; i++) {
+    world.column(cx - 8 + i * 3, cz - halfD + 6 + (i % 2) * 2, level + 1, bridgeY - 1, frame);
+  }
+  world.fill(cx - 3, level + 1, cz - 4, cx + 3, level + 2, cz + 4, P.chiseledBlackstone);
+  world.set(cx, level + 3, cz, P.furnace);
+  for (let y = level + 3; y <= level + 16; y++) {
+    const r = y % 3 === 0 ? 2 : 1;
+    world.disc(cx, cz, r, y, y % 4 === 0 ? P.limeGlass : P.greenGlass);
+  }
+  world.set(cx, level + 17, cz, P.glowstone);
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      world.set(cx + sx * 4, level + 9, cz + sz * 4, P.hangingSoulLantern);
+    }
+  }
+
+  // A Soul Keeper outbuilding and the cullet heap at the door.
+  house(world, cx - 26, cz - 36, 11, 9, level, 6, style, { face: 0 });
+  for (let i = 0; i < 40; i++) {
+    const x = cx - 24 + rng.int(0, 48);
+    const z = cz + 34 + rng.int(0, 8);
+    world.set(x, level + 1, z, rng.chance(0.5) ? P.glass : P.glassPane);
+  }
+  for (let i = 0; i < 5; i++) {
+    lampPost(world, cx - 20 + i * 10, cz - halfD - 6, level, style.light, 4);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 16. The Gate Field - the cut portals
+// ---------------------------------------------------------------------------
+
+/**
+ * The field of gates: eighteen nether portals in three colonnades, each one in
+ * a different state of failure.
+ *
+ * *whole* - the frame stands and the portal is lit;
+ * *cut* - the frame is sheared off above head height, so only a stub of obsidian
+ * and the lower half of the portal survives (the "cut portal");
+ * *collapsed* - just the jambs and a scatter of obsidian are left.
+ *
+ * A grand double gate stands at the middle of the field.
+ */
+export function buildPortalField(world: World): void {
+  const { x: cx, z: cz } = LANDMARKS.portalField.center;
+  const style = BLACKSTONE_STYLE;
+  const level = areaGround(world, LANDMARKS.portalField.footprint);
+  pad(world, rect(cx - 40, cz - 50, cx + 40, cz + 50), level, P.blackstone, P.blackstone);
+  const rng = new Rng(0x9a7e);
+
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 6; col++) {
+      const gx = cx - 30 + col * 12;
+      const gz = cz - 32 + row * 32;
+      if (Math.abs(gx - cx) < 3 && Math.abs(gz - cz) < 3) continue; // the grand gate stands here
+      const y = level + 1;
+      const alongX = rng.chance(0.5);
+      const kind = rng.next();
+
+      if (kind < 0.34) {
+        // Cut: build it, then shear the top of the frame away.
+        portalFrame(world, gx, y, gz, alongX, true);
+        world.fill(gx - 4, y + 3, gz - 4, gx + 4, y + 12, gz + 4, AIR);
+        for (let i = -2; i <= 2; i++) {
+          const px = alongX ? gx + i : gx;
+          const pz = alongX ? gz : gz + i;
+          world.set(px, y, pz, P.obsidian);
+          if (Math.abs(i) === 2) world.set(px, y + 1, pz, rng.chance(0.6) ? P.obsidian : P.cryingObsidian);
+        }
+      } else if (kind < 0.68) {
+        // Collapsed: jambs and rubble only.
+        for (const i of [-2, 2]) {
+          const px = alongX ? gx + i : gx;
+          const pz = alongX ? gz : gz + i;
+          world.column(px, pz, y, y + rng.int(1, 3), P.obsidian);
+          world.set(px, y + 4, pz, P.cryingObsidian);
+        }
+        for (let i = 0; i < 6; i++) {
+          const px = gx + rng.int(-4, 4);
+          const pz = gz + rng.int(-4, 4);
+          world.set(px, y, pz, rng.chance(0.4) ? P.cryingObsidian : P.obsidian);
+        }
+      } else {
+        portalFrame(world, gx, y, gz, alongX, false);
+        world.set(gx, y + 5, gz, P.soulLantern);
+      }
+    }
+  }
+
+  // The grand gate: a ten-wide obsidian arch with a lit portal in the middle.
+  const gateZ = cz + 2;
+  for (let i = -5; i <= 5; i++) {
+    for (let j = -1; j <= 9; j++) {
+      const corner = Math.abs(i) === 5 && (j === -1 || j === 9);
+      const edge = Math.abs(i) === 5 || j === -1 || j === 9;
+      if (!edge) {
+        world.set(cx + i, level + 1 + j, gateZ, P.portal);
+        continue;
+      }
+      world.set(cx + i, level + 1 + j, gateZ, corner || rng.chance(0.85) ? P.obsidian : P.cryingObsidian);
+    }
+  }
+  world.fill(cx - 3, level + 1, gateZ - 2, cx + 3, level + 3, gateZ + 2, P.chiseledBlackstone);
+  for (const sx of [-7, 7]) {
+    tower(world, cx + sx, gateZ, 3, level, 14, style, { round: true, crown: true });
+  }
+  for (const sz of [-34, 34]) {
+    lampPost(world, cx - 24, cz + sz, level, style.light, 5);
+    lampPost(world, cx + 24, cz + sz, level, style.light, 5);
+  }
+  // A couple of caged gates taken out of use.
+  for (const [gx, gz] of [
+    [cx - 34, cz + 44],
+    [cx + 34, cz - 44],
+  ] as const) {
+    cage(world, gx, gz, level + 1, 2);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 17. The End Ruin
+// ---------------------------------------------------------------------------
+
+/**
+ * The dark end of the realm: "the sky and void grow increasingly darker as the
+ * proximity to the end shortens". A shattered plaza of end stone and purpur on
+ * an obsidian rim, ringed by obsidian pillars carrying end rods, with four
+ * broken end portals - the only ones in the world - and a shard of the End
+ * hanging above it. `brokenEndPortal` had been written and never called; this is
+ * its home.
+ */
+export function buildEndRuin(world: World): void {
+  const { x: cx, z: cz } = LANDMARKS.endRuin.center;
+  const style = BLACKSTONE_STYLE;
+  const level = areaGround(world, LANDMARKS.endRuin.footprint);
+  pad(world, rect(cx - 38, cz - 38, cx + 38, cz + 38), level, P.endStone, P.obsidian);
+  const rng = new Rng(0x3ed0);
+
+  // The plaza's outer rim stays in the realm's own black rock, so the end stone
+  // reads as an island of End material dropped into the darkness rather than a
+  // light platform sitting on it.
+  for (let i = 0; i < 120; i++) {
+    const a = rng.next() * Math.PI * 2;
+    const r = 26 + rng.next() * 12;
+    const px = cx + Math.round(Math.cos(a) * r);
+    const pz = cz + Math.round(Math.sin(a) * r);
+    world.set(px, level, pz, rng.chance(0.5) ? P.obsidian : P.blackstone);
+  }
+
+  // The plaza: rings of end stone brick and purpur, cracked and gapped.
+  world.disc(cx, cz, 24, level + 1, P.endStoneBricks);
+  world.disc(cx, cz, 18, level + 2, P.endStone);
+  for (let i = 0; i < 26; i++) {
+    const a = rng.next() * Math.PI * 2;
+    const r = 6 + rng.next() * 18;
+    const px = cx + Math.round(Math.cos(a) * r);
+    const pz = cz + Math.round(Math.sin(a) * r);
+    world.set(px, level + 2, pz, rng.chance(0.4) ? P.purpurBlock : P.purpurPillar);
+  }
+  world.ring(cx, cz, 24, level + 1, P.obsidian);
+
+  // Obsidian pillars with end-rod crowns, in the End's own style.
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const px = cx + Math.round(Math.cos(a) * 27);
+    const pz = cz + Math.round(Math.sin(a) * 27);
+    const h = 9 + (i % 3) * 4;
+    world.column(px, pz, level + 1, level + h, P.obsidian);
+    world.set(px, level + h + 1, pz, P.purpurPillar);
+    world.set(px, level + h + 2, pz, P.endRod);
+    if (i % 2 === 0) world.set(px, level + 1, pz + 1, P.cryingObsidian);
+  }
+
+  // Four shattered end portals - the ring shape built whole at the middle.
+  world.disc(cx, cz, 5, level + 2, P.purpurBlock);
+  brokenEndPortal(world, cx, level + 3, cz);
+  brokenEndPortal(world, cx - 21, level + 2, cz + 19);
+  brokenEndPortal(world, cx + 23, level + 2, cz - 17);
+  brokenEndPortal(world, cx + 13, level + 2, cz + 23);
+
+  // Ruined purpur walls, statues, and a shard of the End overhead.
+  for (let i = 0; i < 30; i++) {
+    const x = cx - 34 + rng.int(0, 68);
+    const z = cz - 34 + rng.int(0, 68);
+    if (Math.hypot(x - cx, z - cz) < 20) continue;
+    const h = rng.int(1, 6);
+    world.column(x, z, level + 1, level + h, rng.chance(0.5) ? P.endStoneBricks : P.purpurBlock);
+    if (rng.chance(0.3)) world.set(x, level + h + 1, z, P.cryingObsidian);
+  }
+  world.disc(cx, cz, 11, level + 24, P.obsidian);
+  world.disc(cx, cz, 7, level + 23, P.endStoneBricks);
+  world.column(cx, cz, level + 25, level + 29, P.purpurPillar);
+  world.set(cx, level + 30, cz, P.endRod);
+  for (const sx of [-8, 8]) {
+    for (const sz of [-8, 8]) {
+      world.set(cx + sx, level + 23, cz + sz, P.cryingObsidian);
+    }
+  }
+
+  // The way in: an archway off the road, flanked by statues.
+  gatehouse(world, cx, cz + 30, level, style, 2, { height: 8 });
+  for (let i = 0; i < 4; i++) {
+    statue(world, cx - 12 + i * 8, cz + 34, level, 1, style);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 14. The Nether Portal Lobby (twenty portals)
 // ---------------------------------------------------------------------------
 
@@ -1028,4 +1307,7 @@ export function buildAllAreas(world: World): void {
   buildAshenReaches(world);
   buildRuinedCastle(world);
   buildPortalLobby(world);
+  buildGlassworks(world);
+  buildPortalField(world);
+  buildEndRuin(world);
 }
