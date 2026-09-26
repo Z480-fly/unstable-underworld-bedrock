@@ -157,6 +157,13 @@ export const LANDMARKS = {
     footprint: { kind: "rect", x1: -182, z1: 118, x2: -134, z2: 162 },
     source: "Twenty portals connecting the Underworld to the Far Lands in every direction.",
   },
+  orbitalStrike: {
+    id: "orbitalStrike",
+    name: "Orbital Strike Platform",
+    center: { x: 170, z: 80 },
+    footprint: { kind: "rect", x1: 140, z1: 50, x2: 200, z2: 110 },
+    source: "Static visual replica of an Orbital Strike cannon platform (Wemmbu / Unstable style).",
+  },
 } as const satisfies Record<string, Landmark>;
 
 export type LandmarkId = keyof typeof LANDMARKS;
@@ -208,6 +215,10 @@ export const TERRAIN_REGIONS: TerrainRegion[] = [
   { id: "centerPlain", shape: { kind: "rect", x1: -66, z1: -22, x2: 66, z2: 102 }, relief: 0.25 },
   // Hamlet ground for the abandoned village.
   { id: "villageFlat", shape: { kind: "rect", x1: 82, z1: -192, x2: 156, z2: -148 }, relief: 0.3 },
+  // Extra wasteland relief east of Breach.
+  { id: "eastWastes", shape: { kind: "circle", x: 80, z: 100, radius: 36 }, heightDelta: 4, relief: 1.2 },
+  // Slight rise west of Ruins for more silhouette against the void gulf.
+  { id: "ruinsRidge", shape: { kind: "circle", x: 20, z: -40, radius: 28 }, heightDelta: 5, relief: 1.15, ridged: true },
 ];
 
 export interface RoadPath {
@@ -243,8 +254,6 @@ export const ROADS: RoadPath[] = [
     style: "main",
   },
   {
-    // The map's spine: Fields -> Center -> (glass bridges over the void gulf,
-    // past the void castles) -> the Citadel's east gate.
     id: "longWalkWest",
     from: { x: 158, z: 40 },
     to: { x: -128, z: 40 },
@@ -309,7 +318,6 @@ export const ROADS: RoadPath[] = [
     style: "path",
   },
   {
-    // West island, north leg: the Citadel up to the Pit and the tomb.
     id: "tombRoad",
     from: { x: -158, z: 6 },
     to: { x: -158, z: -36 },
@@ -318,7 +326,6 @@ export const ROADS: RoadPath[] = [
     style: "path",
   },
   {
-    // West island, south leg: the Citadel down to the portal lobby.
     id: "lobbyRoad",
     from: { x: -158, z: 74 },
     to: { x: -158, z: 116 },
@@ -327,7 +334,6 @@ export const ROADS: RoadPath[] = [
     style: "path",
   },
   {
-    // Frost pocket back to the Breach, closing the southern ring.
     id: "frostBreachRoad",
     from: { x: -28, z: 170 },
     to: { x: -8, z: 160 },
@@ -336,7 +342,6 @@ export const ROADS: RoadPath[] = [
     style: "path",
   },
   {
-    // Southern rim: frost pocket across the ash to the lava lake.
     id: "southRimRoad",
     from: { x: -28, z: 176 },
     to: { x: 100, z: 152 },
