@@ -1,0 +1,53 @@
+name: Build World
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-world-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build .mcworld
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build the .mcworld
+        run: bun run build:map
+
+      - name: Upload world artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Underworld-Simulator-Remastered
+          path: |
+            dist/Underworld-Simulator-Remastered.mcworld
+            docs/map-preview.jpg
+          retention-days: 30
+
+      - name: Commit updated world to repo
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist/Underworld-Simulator-Remastered.mcworld docs/map-preview.jpg || true
+          if git diff --staged --quiet; then
+            echo "No world changes to commit"
+          else
+            git commit -m "chore: rebuild world [skip ci]"
+            git push
+          fi
