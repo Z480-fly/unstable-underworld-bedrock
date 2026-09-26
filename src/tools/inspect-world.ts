@@ -12,6 +12,10 @@
  *    buffer order into the payload silently swaps X and Y and the imported
  *    world turns into stripes of terrain instead of the intended island
  *  - no gravity block (gravel, sand, concrete powder) was written at all
+ *  - every Data3D payload decodes as 24 biome storages whose heightmap matches
+ *    the regenerated scene, and reads back through the reference parser
+ *  - every chunk carries the 1.26 metadata records (MetaDataHash, BlendingData,
+ *    ActorDigestVersion) and its hash resolves in the metadata dictionary
  *  - level.dat parses back and carries the values we set
  *  - the `.mcworld` ZIP contains the required entries
  *
@@ -29,6 +33,18 @@ import { join } from "node:path";
 import { parseLevelDat } from "../bedrock/leveldat.ts";
 import { CHUNK_TAG } from "../bedrock/world-writer.ts";
 import { bitsForPaletteSize, SUBCHUNK_BLOCK_COUNT } from "../bedrock/subchunk.ts";
+import {
+  BIOME_SLICE_COUNT,
+  DEFAULT_BIOME_ID,
+  collectChunkHeights,
+  parseData3D,
+} from "../bedrock/data3d.ts";
+import {
+  buildChunkMetaData,
+  hashChunkMetaData,
+  parseMetaDataDictionary,
+} from "../bedrock/chunk-metadata.ts";
+import { CONFIG } from "../world/config.ts";
 import { GRAVITY_BLOCK_NAMES } from "../world/blocks.ts";
 import { buildSceneWorld, type Scene } from "../world/scene.ts";
 
@@ -63,14 +79,43 @@ interface SubChunkRecord {
   value: Buffer;
 }
 
+/** A Data3D payload together with the chunk it describes. */
+interface Data3DRecord {
+  cx: number;
+  cz: number;
+  value: Buffer;
+}
+
+/** A per-chunk metadata record (0x3F MetaDataHash, 0x40 BlendingData, 0x41 ActorDigestVersion). */
+interface MetaRecord {
+  cx: number;
+  cz: number;
+  value: Buffer;
+}
+
+/** Everything the chunk scan collects, so the checks can run outside it. */
+interface DatabaseScan {
+  subChunks: SubChunkRecord[];
+  data3D: Data3DRecord[];
+  metaHashes: MetaRecord[];
+  blendingData: MetaRecord[];
+  actorDigest: MetaRecord[];
+  /** The world-level `LevelChunkMetaDataDictionary` record, if present. */
+  dictionary?: Buffer;
+  /** Number of distinct chunks referenced by the database. */
+  chunkCount: number;
+}
+
 interface ParsedLayer {
   palette: { value: Record<string, { value: { name: { value: string } } }> };
   block_indices: { value: { value: number[] } };
 }
 
-const { entryContentTypeToFormatMap } = (await import("mcbe-leveldb")) as {
+const { entryContentTypeToFormatMap } = (await import("mcbe-leveldb")) as unknown as {
   entryContentTypeToFormatMap: {
     SubChunkPrefix: { parse: (data: Buffer) => Promise<unknown> };
+    Data3D: { parse: (data: Buffer) => Promise<unknown> };
+    LevelChunkMetaDataDictionary: { parse: (data: Buffer) => Promise<unknown> };
   };
 };
 
@@ -129,7 +174,7 @@ function namedKey(key: Buffer): string | undefined {
   return /^[\x20-\x7e]+$/.test(text) ? text : undefined;
 }
 
-async function inspectDatabase(dbDir: string, report: Report): Promise<SubChunkRecord[]> {
+async function inspectDatabase(dbDir: string, report: Report): Promise<DatabaseScan> {
   const db = new ClassicLevel<Buffer, Buffer>(dbDir, { keyEncoding: "buffer", valueEncoding: "buffer" });
   await db.open();
 
@@ -137,6 +182,11 @@ async function inspectDatabase(dbDir: string, report: Report): Promise<SubChunkR
   const chunkSet = new Set<string>();
   const subChunkSizes: number[] = [];
   const subChunks: SubChunkRecord[] = [];
+  const data3D: Data3DRecord[] = [];
+  const metaHashes: MetaRecord[] = [];
+  const blendingData: MetaRecord[] = [];
+  const actorDigest: MetaRecord[] = [];
+  let dictionary: Buffer | undefined;
   const namedKeys: string[] = [];
   const malformed: string[] = [];
   let totalKeys = 0;
@@ -146,8 +196,12 @@ async function inspectDatabase(dbDir: string, report: Report): Promise<SubChunkR
     const info = decodeChunkKey(key);
     if (!info) {
       const name = namedKey(key);
-      if (name) namedKeys.push(name);
-      else malformed.push(`${key.length} bytes: ${key.toString("hex")}`);
+      if (name) {
+        namedKeys.push(name);
+        if (name === "LevelChunkMetaDataDictionary") dictionary = value;
+      } else {
+        malformed.push(`${key.length} bytes: ${key.toString("hex")}`);
+      }
       continue;
     }
     tagCounts.set(info.tag, (tagCounts.get(info.tag) ?? 0) + 1);
@@ -155,6 +209,14 @@ async function inspectDatabase(dbDir: string, report: Report): Promise<SubChunkR
     if (info.tag === CHUNK_TAG.SubChunkPrefix) {
       subChunkSizes.push(value.length);
       subChunks.push({ cx: info.cx, cz: info.cz, subY: info.subChunkIndex ?? 0, value });
+    } else if (info.tag === CHUNK_TAG.Data3D) {
+      data3D.push({ cx: info.cx, cz: info.cz, value });
+    } else if (info.tag === CHUNK_TAG.MetaDataHash) {
+      metaHashes.push({ cx: info.cx, cz: info.cz, value });
+    } else if (info.tag === CHUNK_TAG.BlendingData) {
+      blendingData.push({ cx: info.cx, cz: info.cz, value });
+    } else if (info.tag === CHUNK_TAG.ActorDigestVersion) {
+      actorDigest.push({ cx: info.cx, cz: info.cz, value });
     }
   }
 
@@ -169,6 +231,8 @@ async function inspectDatabase(dbDir: string, report: Report): Promise<SubChunkR
   check(report, malformed.length === 0, "db", `malformed keys: ${malformed.slice(0, 3).join(" | ")}`);
   check(report, chunkSet.size > 0, "db", "no chunk keys were written");
   check(report, subChunks.length > 0, "db", "no subchunk payloads were written");
+
+  check(report, (tagCounts.get(CHUNK_TAG.Data2D) ?? 0) === 0, "db", "Data2D records were written; a native 1.18+ chunk has none");
 
   const versions = tagCounts.get(CHUNK_TAG.Version) ?? 0;
   const finalized = tagCounts.get(CHUNK_TAG.FinalizedState) ?? 0;
@@ -217,7 +281,15 @@ async function inspectDatabase(dbDir: string, report: Report): Promise<SubChunkR
   check(report, parseFailures.length === 0, "db", `subchunk parse failures: ${parseFailures.slice(0, 3).join(" | ")}`);
 
   await db.close();
-  return subChunks;
+  return {
+    subChunks,
+    data3D,
+    metaHashes,
+    blendingData,
+    actorDigest,
+    dictionary,
+    chunkCount: chunkSet.size,
+  };
 }
 
 /**
@@ -295,6 +367,157 @@ async function inspectGeneratorRoundTrip(
     "round-trip",
     `gravity blocks were written and will fall out of the terrain: ${[...gravityFound].join(", ")}`,
   );
+}
+
+/**
+ * Data3D is the biome + heightmap record every 1.18+ chunk carries, and the
+ * heightmap is the one part of it that mirrors the generator, so it gets the
+ * same treatment as the block payloads: decode it here *and* read it back
+ * through the reference parser, then compare its columns against the scene.
+ */
+async function inspectData3D(scene: Scene | undefined, records: Data3DRecord[], report: Report): Promise<void> {
+  /** 24 uniform biome storages: barest form for a single-biome chunk. */
+  const expectedSize = 512 + BIOME_SLICE_COUNT * 5;
+  let referenceOk = 0;
+  let shapeFailures = 0;
+  let biomeFailures = 0;
+  let heightMismatches = 0;
+  const examples: string[] = [];
+
+  for (const record of records) {
+    const label = `${record.cx},${record.cz}`;
+
+    let parsed: ReturnType<typeof parseData3D>;
+    try {
+      parsed = parseData3D(record.value);
+    } catch (error) {
+      shapeFailures++;
+      if (examples.length < 5) examples.push(`${label}: Data3D does not decode - ${String(error)}`);
+      continue;
+    }
+
+    if (parsed.slices.length !== BIOME_SLICE_COUNT || record.value.length !== expectedSize) {
+      shapeFailures++;
+      if (examples.length < 5) {
+        examples.push(
+          `${label}: ${parsed.slices.length} biome storages in ${record.value.length} bytes ` +
+            `(expected ${BIOME_SLICE_COUNT} in ${expectedSize})`,
+        );
+      }
+    }
+
+    for (const slice of parsed.slices) {
+      if (slice.kind !== "uniform" || slice.biomeId !== DEFAULT_BIOME_ID) {
+        biomeFailures++;
+        if (examples.length < 5) examples.push(`${label}: biome storage is ${slice.kind}, expected uniform ${DEFAULT_BIOME_ID}`);
+        break;
+      }
+    }
+
+    try {
+      const reference = (await entryContentTypeToFormatMap.Data3D.parse(record.value)) as {
+        value: {
+          heightMap: { value: { value: Array<{ value: number[] }> } };
+          biomes: {
+            value: {
+              value: Array<{
+                values: { value: { value: number[] } };
+                palette: { value: { value: number[] } };
+              }>;
+            };
+          };
+        };
+      };
+      const biomes = reference.value.biomes.value.value;
+      const rows = reference.value.heightMap.value.value;
+      if (biomes.length !== BIOME_SLICE_COUNT || rows.length !== 16) {
+        shapeFailures++;
+        if (examples.length < 5) examples.push(`${label}: reference parser saw ${biomes.length} storages and ${rows.length} height rows`);
+      } else {
+        referenceOk++;
+      }
+    } catch (error) {
+      shapeFailures++;
+      if (examples.length < 5) examples.push(`${label}: reference Data3D parser failed - ${String(error)}`);
+    }
+
+    if (scene) {
+      const expected = collectChunkHeights(
+        (x, z) => scene.world.surfaceAt(x, z),
+        (x, z) => scene.world.isLand(x, z),
+        record.cx,
+        record.cz,
+      );
+      let bad = 0;
+      for (let i = 0; i < 256; i++) if (parsed.heights[i] !== expected[i]) bad++;
+      if (bad > 0) {
+        heightMismatches++;
+        if (examples.length < 5) examples.push(`${label}: ${bad} of 256 heightmap columns disagree with the generator`);
+      }
+    }
+  }
+
+  const sizes = new Set(records.map((r) => r.value.length));
+  console.log(`\nData3D: ${records.length} payloads (` +
+    `${sizes.size === 1 ? `${[...sizes][0]} bytes each` : `${sizes.size} distinct sizes`}), ` +
+    `${referenceOk} read back through the reference parser`);
+  check(report, records.length > 0, "Data3D", "no Data3D payload was written");
+  check(report, records.length === referenceOk, "Data3D", `reference parser failures: ${examples.join(" | ")}`);
+  check(report, shapeFailures === 0, "Data3D", `malformed payloads: ${examples.join(" | ")}`);
+  check(report, biomeFailures === 0, "Data3D", `payloads not carrying biome ${DEFAULT_BIOME_ID}: ${examples.join(" | ")}`);
+  check(report, heightMismatches === 0, "Data3D", `heightmaps that disagree with the generator: ${examples.join(" | ")}`);
+}
+
+/**
+ * The three chunk-metadata records a 1.26 world writes on every chunk, plus the
+ * dictionary every MetaDataHash points into. The hash has to be recomputed the
+ * way the game does it (xxHash64 over the network-order metadata NBT), so this
+ * is also the check that the hash stays reproducible.
+ */
+async function inspectChunkMetadata(scan: DatabaseScan, report: Report): Promise<void> {
+  const expected = buildChunkMetaData({
+    baseGameVersion: CONFIG.inventoryVersion,
+    generationSeed: BigInt(CONFIG.seed),
+    generatorType: 1,
+    dimensionName: "Overworld",
+    dimensionRange: { min: -64, max: 320 },
+  });
+  const expectedHash = hashChunkMetaData(expected);
+
+  let badHash = 0;
+  for (const record of scan.metaHashes) {
+    if (record.value.length !== 8 || record.value.readBigUInt64LE(0) !== expectedHash) badHash++;
+  }
+  const badBlending = scan.blendingData.filter((r) => r.value.length !== 2 || r.value[0] !== 0).length;
+  const badDigest = scan.actorDigest.filter((r) => r.value.length !== 1 || r.value[0] !== 0).length;
+
+  console.log(`\nchunk metadata: ${scan.dictionary?.length ?? 0} byte dictionary, ` +
+    `${scan.metaHashes.length} MetaDataHash, ${scan.blendingData.length} BlendingData, ${scan.actorDigest.length} ActorDigestVersion`);
+  console.log(`  metadata hash ${expectedHash.toString(16).padStart(16, "0")}`);
+
+  check(report, scan.chunkCount > 0 && scan.metaHashes.length === scan.chunkCount, "metadata", `${scan.metaHashes.length} MetaDataHash records for ${scan.chunkCount} chunks`);
+  check(report, badHash === 0, "metadata", `${badHash} MetaDataHash records do not match the recomputed metadata hash`);
+  check(report, scan.blendingData.length === scan.chunkCount && badBlending === 0, "metadata", `${badBlending} of ${scan.blendingData.length} BlendingData records are not [0, version]`);
+  check(report, scan.actorDigest.length === scan.chunkCount && badDigest === 0, "metadata", `${badDigest} of ${scan.actorDigest.length} ActorDigestVersion records are not 0`);
+  check(report, scan.dictionary !== undefined, "metadata", "the LevelChunkMetaDataDictionary record is missing");
+
+  if (!scan.dictionary) return;
+
+  const entries = parseMetaDataDictionary(scan.dictionary);
+  check(report, entries.length === 1 && entries[0]!.hash === expectedHash, "metadata", `dictionary holds ${entries.length} entries, first hash ${entries[0]?.hash.toString(16) ?? "-"}`);
+
+  try {
+    const reference = (await entryContentTypeToFormatMap.LevelChunkMetaDataDictionary.parse(scan.dictionary)) as {
+      value: Record<string, { value: Record<string, unknown> }>;
+    };
+    const hashes = Object.keys(reference.value);
+    // mcbe-leveldb keys dictionary entries by the stored hash bytes (uint64 LE).
+    const referenceHash = hashes.length === 1 ? Buffer.from(hashes[0]!, "hex").readBigUInt64LE(0) : undefined;
+    check(report, referenceHash === expectedHash, "metadata", `the reference parser read hash ${hashes.join(",")} from the dictionary`);
+  } catch (error) {
+    fail(report, "metadata", `reference dictionary parser failed - ${String(error)}`);
+    report.checks++;
+  }
 }
 
 async function inspectLevelDat(worldDir: string, report: Report): Promise<void> {
@@ -384,13 +607,18 @@ async function main(): Promise<void> {
   const worldDir = join(process.cwd(), "build", "world");
   const report = newReport();
 
-  const subChunks = await inspectDatabase(join(worldDir, "db"), report);
+  const scan = await inspectDatabase(join(worldDir, "db"), report);
   await inspectLevelDat(worldDir, report);
 
   // Only meaningful for a world built from this repo's own generator.
-  if (arg === undefined && subChunks.length > 0) {
-    await inspectGeneratorRoundTrip(buildSceneWorld(), subChunks, report);
+  if (arg === undefined && scan.subChunks.length > 0) {
+    const scene = buildSceneWorld();
+    await inspectGeneratorRoundTrip(scene, scan.subChunks, report);
+    await inspectData3D(scene, scan.data3D, report);
+  } else {
+    await inspectData3D(undefined, scan.data3D, report);
   }
+  await inspectChunkMetadata(scan, report);
 
   const buffer = await readFile(join(worldDir, "world_icon.jpeg"));
   const jpegMagic = buffer[0] === 0xff && buffer[1] === 0xd8;

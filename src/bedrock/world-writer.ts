@@ -34,6 +34,13 @@ export const CHUNK_TAG = {
   HardcodedSpawners: 0x39,
   RandomTicks: 0x3a,
   Checksums: 0x3b,
+  GenerationSeed: 0x3c,
+  GeneratedPreCavesAndCliffsBlending: 0x3d,
+  BlendingBiomeHeight: 0x3e,
+  /** uint64 LE: xxHash64 of this chunk's metadata, a key into the dictionary. */
+  MetaDataHash: 0x3f,
+  BlendingData: 0x40,
+  ActorDigestVersion: 0x41,
   LegacyVersion: 0x76,
 } as const;
 
@@ -100,9 +107,38 @@ export class BedrockWorldDb {
     await this.put(chunkKey(chunkX, chunkZ, dimension, CHUNK_TAG.Data3D), value);
   }
 
-  /** Legacy heightmap + 2D biomes (extra compatibility for older loaders). */
+  /**
+   * Legacy heightmap + 2D biomes. Bedrock stopped writing Data2D in 1.18.0 and
+   * does not need it, so this is only here for the format record.
+   */
   async putData2D(chunkX: number, chunkZ: number, value: Buffer, dimension = 0): Promise<void> {
     await this.put(chunkKey(chunkX, chunkZ, dimension, CHUNK_TAG.Data2D), value);
+  }
+
+  /** uint64 LE metadata hash, the key into the metadata dictionary. */
+  async putMetaDataHash(chunkX: number, chunkZ: number, hash: bigint, dimension = 0): Promise<void> {
+    const value = Buffer.allocUnsafe(8);
+    value.writeBigUInt64LE(hash & 0xffffffffffffffffn, 0);
+    await this.put(chunkKey(chunkX, chunkZ, dimension, CHUNK_TAG.MetaDataHash), value);
+  }
+
+  /** Seamless-blending data; `[0, version]` for a chunk that is not a source. */
+  async putBlendingData(chunkX: number, chunkZ: number, value: Buffer, dimension = 0): Promise<void> {
+    await this.put(chunkKey(chunkX, chunkZ, dimension, CHUNK_TAG.BlendingData), value);
+  }
+
+  /** Entity-digest format version for this chunk (0 = the 1.18.30 format). */
+  async putActorDigestVersion(chunkX: number, chunkZ: number, version: number, dimension = 0): Promise<void> {
+    await this.put(chunkKey(chunkX, chunkZ, dimension, CHUNK_TAG.ActorDigestVersion), Buffer.from([version & 0xff]));
+  }
+
+  /**
+   * World-level `LevelChunkMetaDataDictionary`: every chunk's `MetaDataHash`
+   * points at an entry in here, so it is written once for the whole world
+   * (all realm chunks share one metadata compound).
+   */
+  async putMetaDataDictionary(value: Buffer): Promise<void> {
+    await this.put(Buffer.from("LevelChunkMetaDataDictionary", "utf8"), value);
   }
 
   /**

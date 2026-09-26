@@ -13,7 +13,14 @@ import { renderMapImage } from "./world/icon.ts";
 import { buildLevelDat } from "./bedrock/leveldat.ts";
 import { BedrockWorldDb } from "./bedrock/world-writer.ts";
 import { serializeSubChunk } from "./bedrock/subchunk.ts";
-import { collectChunkHeights, serializeData2D, serializeData3D } from "./bedrock/data3d.ts";
+import { collectChunkHeights, serializeData3D } from "./bedrock/data3d.ts";
+import {
+  ACTOR_DIGEST_VERSION,
+  buildChunkMetaData,
+  hashChunkMetaData,
+  serializeBlendingData,
+  serializeMetaDataDictionary,
+} from "./bedrock/chunk-metadata.ts";
 import { ZipWriter } from "./bedrock/zip.ts";
 import type { World } from "./world/world.ts";
 
@@ -110,6 +117,21 @@ async function main(): Promise<void> {
   let subChunkCount = 0;
   const subChunkLevels = CONFIG.maxY >> 4;
 
+  // Chunk metadata is identical for every chunk we write (one generated seed,
+  // one base game version, nothing left to migrate), so the dictionary holds a
+  // single entry that every chunk's MetaDataHash points at - which is exactly
+  // how a real world de-duplicates it.
+  const metaData = buildChunkMetaData({
+    baseGameVersion: CONFIG.inventoryVersion,
+    generationSeed: BigInt(CONFIG.seed),
+    generatorType: 1,
+    dimensionName: "Overworld",
+    dimensionRange: { min: -64, max: 320 },
+  });
+  const metaDataHash = hashChunkMetaData(metaData);
+  const blendingData = serializeBlendingData();
+  await db.putMetaDataDictionary(serializeMetaDataDictionary([{ hash: metaDataHash, meta: metaData }]));
+
   let data3dCount = 0;
   for (const chunk of world.allChunks()) {
     chunkCount++;
@@ -122,7 +144,9 @@ async function main(): Promise<void> {
       chunk.cz,
     );
     await db.putData3D(chunk.cx, chunk.cz, serializeData3D(heights));
-    await db.putData2D(chunk.cx, chunk.cz, serializeData2D(heights));
+    await db.putMetaDataHash(chunk.cx, chunk.cz, metaDataHash);
+    await db.putBlendingData(chunk.cx, chunk.cz, blendingData);
+    await db.putActorDigestVersion(chunk.cx, chunk.cz, ACTOR_DIGEST_VERSION);
     data3dCount++;
     for (let subY = 0; subY <= subChunkLevels; subY++) {
       if (chunk.isSubChunkEmpty(subY)) continue;
@@ -148,11 +172,13 @@ async function main(): Promise<void> {
         cz,
       );
       await db.putData3D(cx, cz, serializeData3D(heights));
-      await db.putData2D(cx, cz, serializeData2D(heights));
+      await db.putMetaDataHash(cx, cz, metaDataHash);
+      await db.putBlendingData(cx, cz, blendingData);
+      await db.putActorDigestVersion(cx, cz, ACTOR_DIGEST_VERSION);
       data3dCount++;
     }
   }
-  log(`wrote Data3D/Data2D for ${data3dCount} chunks`);
+  log(`wrote Data3D + chunk metadata for ${data3dCount} chunks`);
 
   await db.put(Buffer.from("game_flatworldlayers", "utf8"), Buffer.from("[]", "utf8"));
   await db.compactAll();

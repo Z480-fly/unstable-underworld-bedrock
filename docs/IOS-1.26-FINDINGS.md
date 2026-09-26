@@ -76,8 +76,11 @@ On My iPhone/Minecraft/games/com.mojang/minecraftWorlds/<randomId>/
 2. ~~InventoryVersion / min client → **1.26.51** / **1.26.50**~~ — done in `config.ts`
 3. ~~`NetworkVersion: 2193`, `WorldVersion: 1`, `Platform: 2`~~ — done in `leveldat.ts`
 4. ~~FlatWorldLayers ClassicFlat~~ — done in `leveldat.ts`
-5. **Still TODO:** Expand Data3D to phone-sized biome layout (~5252 bytes)
-6. **Still TODO:** Tags 0x3F / 0x40 / 0x41 payloads from phone WAL
+5. ~~**Still TODO:** Expand Data3D to phone-sized biome layout (~5252 bytes)~~ — **resolved**, see
+   "Data3D and chunk metadata" below. The real layout is 24 biome storages; the phone's ~5252 bytes
+   came from subchunks that hold two biomes each, not from a different structure.
+6. ~~**Still TODO:** Tags 0x3F / 0x40 / 0x41 payloads from phone WAL~~ — **resolved** from the
+   format spec plus two independent implementations, see below.
 7. **Still TODO:** Confirm full `structures.ts` on remote (local copy is 24 KB)
 
 ## Handoff prompt (for another agent)
@@ -162,3 +165,70 @@ Two side notes from the same session, both now enforced in code:
 The Data3D gap described above (uniform biome, ~637 bytes instead of ~5 KB) is still open, and it is
 still unknown whether the client accepts it in place. It is no longer the leading suspect for the
 broken rendering, though, since it cannot rotate a world 90°.
+
+---
+
+## Data3D and chunk metadata: resolved (2026-09-26)
+
+The two remaining TODOs above are now implemented. The work was guided by three independent
+sources, which agree byte for byte:
+
+* the byte-level "Bedrock Edition level format" table (Minecraft Wiki, Chinese mirror included);
+* uNmINeD's reverse-engineering write-up of the 1.18 3D biome format;
+* two implementations — `mcbe-leveldb` (the TypeScript parser `bun run inspect` already uses as its
+  gate) and Prismarine-Anchor's Rust `data_3d.rs` / `level_chunk_meta_data_dictionary.rs`.
+
+### Data3D: 24 storages, not 25, and not "phone-sized" for a single-biome world
+
+```
+512 bytes   heightmap: 256 x int16 LE, index = x + z*16
+24 storages one per subchunk, bottom (y -64) to top (y 304)
+  header    (type << 1) | 1:   0xFF = no biome data, 0x01 = uniform,
+                               0x03/0x05/... = palettized
+  uniform   0x01 + one int32 biome id          (5 bytes)
+  palettized words: ceil(4096 / floor(32/type)) u32 LE, low bits first,
+             then an int32 palette size and that many int32 biome ids
+```
+
+The Overworld is 384 blocks tall — exactly 24 subchunks. The older wiki claim of "exactly 25
+palettes" is wrong (a 25th storage has nowhere to live, both implementations pad to 24, and the
+Nether/End counts the same source gives — 8 and 16 — are exactly their 128- and 256-block heights).
+
+That also explains the size discrepancy that started this thread. A 1.26.51 phone chunk's Data3D is
+`512 + 9 x 525 + 15 x 1 = 5252` bytes: nine subchunks holding two biomes each (5-byte uniform
+storages for the rest, `0xFF` for the fifteen sky subchunks that do not exist). This map is a
+single soul-sand-valley biome, so its *native* encoding is `512 + 24 x 5 = 632` bytes — the same
+layout, just with nothing to enumerate. Matching the phone's byte count would require inventing
+biomes the map does not have.
+
+### Chunk metadata: 0x3F / 0x40 / 0x41
+
+The wiki's hex column (and `mcbe-leveldb`'s key table) put:
+
+| Tag | Name | Payload |
+|-----|------|---------|
+| 0x3D | GeneratedPreCavesAndCliffsBlending | uint8 — not written by a 1.26 chunk |
+| 0x3E | BlendingBiomeHeight | deprecated, not written |
+| **0x3F** | **MetaDataHash** | uint64 LE — xxHash64 of the chunk's metadata NBT |
+| **0x40** | **BlendingData** | uint8 used-for-blending, uint8 blend version (+ heights when used) |
+| **0x41** | **ActorDigestVersion** | uint8 — 0 is the only shipped format (1.18.30) |
+
+`MetaDataHash` keys into the world-level `LevelChunkMetaDataDictionary`: `u32` entry count, then
+`u64` hash + NBT compound per entry. The hash is xxHash64 (seed 0) over the metadata serialized the
+way the game serializes it for hashing: keys recursively sorted, and Bedrock's *network* NBT order
+(varint string lengths, zig-zag varint i32/i64). Prismarine-Anchor's parser verifies that hash on
+every entry it reads, so the recipe is validated against real worlds even though this environment
+has no sample to check it against locally.
+
+All 1 024 realm chunks now carry the three records. The metadata is built with every one-time
+migration already marked done (base version 1.26.51, extended Overworld height range, underwater
+lava-lake / below-zero fixes applied), so a client that reads it has nothing left to "upgrade", and
+all chunks share one dictionary entry — which is what a real world does too.
+
+### Verification
+
+`bun run check` (typecheck -> 37 tests -> palette -> build -> inspect) is green. Inspect grew from
+26 to 39 checks: every Data3D payload must decode as 24 uniform storages of 632 bytes, read back
+through `mcbe-leveldb`, and match the regenerated heightmap column for column; every MetaDataHash
+must equal the recomputed hash; and the dictionary entry it points at must be readable by the
+reference parser. `Data2D` is no longer written at all, matching a native 1.18+ chunk.
