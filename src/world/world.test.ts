@@ -325,6 +325,9 @@ describe("terrain", () => {
       dungeonChain: P.blackConcrete.name,
       citadel: P.bookshelf.name,
       portalLobby: P.portal.name,
+      glassworks: P.greenGlass.name,
+      portalField: P.cryingObsidian.name,
+      endRuin: P.endPortal.name,
     };
     const world = generateWorld();
     for (const landmark of Object.values(LANDMARKS)) {

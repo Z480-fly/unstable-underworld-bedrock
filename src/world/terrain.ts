@@ -85,6 +85,43 @@ export const CHASMS: Chasm[] = [
     wobble: 2,
     toVoid: false,
   },
+  // --- the expanded outer ring -------------------------------------------------
+  {
+    // A wide southern canyon with a magma floor, cut through the new range.
+    id: "southCanyon",
+    points: [
+      { x: 18, z: 286 },
+      { x: 52, z: 244 },
+      { x: 90, z: 214 },
+    ],
+    width: 6,
+    wobble: 3,
+    toVoid: false,
+  },
+  {
+    // A second void fracture in the far west, so the plate tears apart beyond the Citadel too.
+    id: "farWestFracture",
+    points: [
+      { x: -232, z: 164 },
+      { x: -266, z: 62 },
+      { x: -238, z: -34 },
+    ],
+    width: 3,
+    wobble: 2,
+    toVoid: true,
+  },
+  {
+    // A dry ravine across the new east highlands.
+    id: "highlandRavine",
+    points: [
+      { x: 246, z: 150 },
+      { x: 276, z: 96 },
+      { x: 258, z: 30 },
+    ],
+    width: 4,
+    wobble: 2,
+    toVoid: false,
+  },
 ];
 
 const RAVINE_FLOOR_Y = 18;

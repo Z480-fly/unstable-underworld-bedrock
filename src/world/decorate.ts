@@ -283,13 +283,20 @@ function plateHeightNear(world: World, x: number, z: number, radius: number): nu
   return best;
 }
 
-/** Material for a torn-off chunk of the plate - the same rock the plate is made of. */
+/**
+ * Material for a torn-off chunk of the plate - the same rock the plate is made
+ * of, plus the occasional pane of Soul Keeper glazing torn off with it: glass
+ * drifting in the void is the same "broken structures" story the ruins tell
+ * on the ground, seen from the outside.
+ */
 function shardBlock(n: number): BlockState {
-  if (n < 0.3) return P.deepslate;
-  if (n < 0.55) return P.cobbledDeepslate;
-  if (n < 0.78) return P.tuff;
-  if (n < 0.92) return P.blackstone;
-  return P.deepslateBricks;
+  if (n < 0.28) return P.deepslate;
+  if (n < 0.52) return P.cobbledDeepslate;
+  if (n < 0.74) return P.tuff;
+  if (n < 0.88) return P.blackstone;
+  if (n < 0.94) return P.deepslateBricks;
+  if (n < 0.97) return P.grayGlass;
+  return P.greenGlass;
 }
 
 /**
