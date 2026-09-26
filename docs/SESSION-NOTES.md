@@ -339,3 +339,20 @@ vector), and both `mcbe-leveldb` parsers read the new payloads back.
 **39/39 inspection checks**, Data3D 632 bytes on each of 1 024 chunks, one-entry metadata
 dictionary, `dist/Underworld-Simulator-Remastered.mcworld` 1.84 MB.
 Still unverified here: how it renders on a real iPhone.
+
+---
+
+## Palette: drop the Java state names on chorus_flower and respawn_anchor
+
+The `palette` test started failing after the End Ruin pass added `chorus_flower` and
+`respawn_anchor` to the palette: both carried **Java** state names Bedrock does not have (`age` on
+chorus_flower, `charges` on respawn_anchor), and `validate-palette.ts` rejects any state key outside
+its known Bedrock vocabulary. Both blocks are placed stateless now (src/world/blocks.ts); their
+names are unchanged and they are still used by `end_ruin.ts`.
+
+### State
+
+`palette > every block state exists in Bedrock 1.26.51` passes and `bun run validate` prints
+`palette OK` (152 entries, 144 distinct names). `bun test` is **36 pass / 1 fail**; the remaining
+failure is the unrelated `terrain > every landmark actually builds something` signature mismatch
+from the in-progress areas_a/areas_b restructuring.

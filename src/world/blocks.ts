@@ -205,9 +205,12 @@ export const P = {
   endPortal: bs("minecraft:end_portal"),
   endGateway: bs("minecraft:end_gateway"),
   chorusPlant: bs("minecraft:chorus_plant"),
-  chorusFlower: bs("minecraft:chorus_flower", { age: 5 }),
+  // Bedrock's chorus_flower and respawn_anchor have no `age`/`charges` states
+  // (those are Java state names), so they are placed stateless - the palette
+  // validator rejects unknown state keys.
+  chorusFlower: bs("minecraft:chorus_flower"),
   dragonEgg: bs("minecraft:dragon_egg"),
-  respawnAnchor: bs("minecraft:respawn_anchor", { charges: 4 }),
+  respawnAnchor: bs("minecraft:respawn_anchor"),
   reinforcedDeepslate: bs("minecraft:reinforced_deepslate"),
   lodestone: bs("minecraft:lodestone"),
   pressurePlate: bs("minecraft:stone_pressure_plate", { redstone_signal: 0 }),
