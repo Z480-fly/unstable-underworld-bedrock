@@ -30,7 +30,7 @@ import type { World } from "../world/world.ts";
 /** A block that only that landmark places, used as a fingerprint. */
 const SIGNATURES: Record<string, string> = {
   breach: "minecraft:obsidian",
-  ruinedCastle: "minecraft:stone_pressure_plate",
+  ruinedCastle: "minecraft:portal",
   fields: "minecraft:wheat",
   ashenReaches: "minecraft:lava",
   center: "minecraft:gold_block",
@@ -39,8 +39,8 @@ const SIGNATURES: Record<string, string> = {
   mazeValley: "minecraft:deepslate_bricks",
   village: "minecraft:coarse_dirt",
   frostPocket: "minecraft:blue_ice",
-  tomb: "minecraft:sculk_shrieker",
-  dungeonChain: "minecraft:black_concrete",
+  tomb: "minecraft:sculk_catalyst",
+  dungeonChain: "minecraft:gilded_blackstone",
   citadel: "minecraft:bookshelf",
   portalLobby: "minecraft:portal",
   glassworks: "minecraft:green_stained_glass",

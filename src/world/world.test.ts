@@ -312,7 +312,7 @@ describe("terrain", () => {
     // sit flush with it, so the whole footprint volume is scanned.
     const signatures: Record<string, string> = {
       breach: P.obsidian.name,
-      ruinedCastle: P.pressurePlate.name,
+      ruinedCastle: P.portal.name,
       fields: P.wheat.name,
       ashenReaches: P.lava.name,
       center: P.goldBlock.name,
@@ -321,8 +321,8 @@ describe("terrain", () => {
       mazeValley: P.deepslateBricks.name,
       village: P.coarseDirt.name,
       frostPocket: P.blueIce.name,
-      tomb: P.sculkShrieker.name,
-      dungeonChain: P.blackConcrete.name,
+      tomb: P.sculkCatalyst.name,
+      dungeonChain: P.gildedBlackstone.name,
       citadel: P.bookshelf.name,
       portalLobby: P.portal.name,
       glassworks: P.greenGlass.name,
