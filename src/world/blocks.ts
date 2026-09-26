@@ -126,6 +126,8 @@ export const P = {
   cauldron: bs("minecraft:cauldron", { fill_level: 0 }),
   sprucePlanks: bs("minecraft:spruce_planks"),
   spruceLog: log("minecraft:spruce_log"),
+  darkOakLeaves: leaves("minecraft:dark_oak_leaves"),
+  oakLeaves: leaves("minecraft:oak_leaves"),
   spruceFence: bs("minecraft:spruce_fence"),
   spruceStairs: stairs("minecraft:spruce_stairs", 0),
   spruceSlab: slab("minecraft:spruce_slab"),

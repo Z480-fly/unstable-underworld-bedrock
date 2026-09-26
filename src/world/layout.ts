@@ -173,6 +173,14 @@ export const LANDMARKS = {
     source:
       "The field of gates east of the labyrinth: portals cut short, sheared off mid-frame and collapsed where the Underworld's links failed.",
   },
+  glassGrove: {
+    id: "glassGrove",
+    name: "The Glass Grove - the giant tree",
+    center: { x: 60, z: -232 },
+    footprint: { kind: "rect", x1: 14, z1: -278, x2: 106, z2: -186 },
+    source:
+      "The Soul Keepers' own glazing grown instead of built: a colossal stained-glass tree with an eye in its bole, ringed by lesser trees and a hall of mosaic walls.",
+  },
   endRuin: {
     id: "endRuin",
     name: "The End Ruin",
@@ -246,6 +254,9 @@ export const TERRAIN_REGIONS: TerrainRegion[] = [
   { id: "gateFieldFlats", shape: { kind: "circle", x: 252, z: -116, radius: 58 }, heightDelta: 2, relief: 0.75 },
   { id: "endRuinPlateau", shape: { kind: "rect", x1: -296, z1: -222, x2: -196, z2: -118 }, heightDelta: 5, relief: 0.45 },
   { id: "farWestSpine", shape: { kind: "rect", x1: -320, z1: 0, x2: -232, z2: 150 }, heightDelta: 12, relief: 1.3, ridged: true },
+  // The Glass Grove sits on a flattened shelf: a giant tree needs level ground
+  // for its buttress roots, and the north basin would otherwise tilt it.
+  { id: "glassGroveShelf", shape: { kind: "rect", x1: 6, z1: -286, x2: 116, z2: -180 }, heightDelta: 2, relief: 0.3 },
 ];
 
 export interface RoadPath {
@@ -393,6 +404,17 @@ export const ROADS: RoadPath[] = [
     from: LANDMARKS.mazeValley.center,
     to: LANDMARKS.portalField.center,
     via: [{ x: 190, z: -120 }],
+    width: 1,
+    style: "path",
+  },
+  {
+    id: "glassGroveRoad",
+    from: { x: 40, z: -172 },
+    // Stop on the grove's south approach rather than at its centre: the road
+    // is painted after the landmark, so ending on the centre would pave over
+    // the great tree's root flare.
+    to: { x: 60, z: -192 },
+    via: [{ x: 60, z: -160 }, { x: 40, z: -184 }],
     width: 1,
     style: "path",
   },

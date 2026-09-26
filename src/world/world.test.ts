@@ -14,6 +14,30 @@ function generateWorld(): World {
   return buildSceneWorld().world;
 }
 
+/**
+ * Blocks that count as "a built walkable surface" for the reachability test.
+ * The footpaths are paved in glazing, so the glass variants are in here too -
+ * without them the path pass would look like it had built nothing.
+ */
+const PAVED: ReadonlySet<string> = new Set([
+  P.polishedDeepslate.name,
+  P.cobbledDeepslate.name,
+  P.deepslateTiles.name,
+  P.crackedDeepslateBricks.name,
+  P.polishedBlackstone.name,
+  P.blackstone.name,
+  P.blackstoneBricks.name,
+  P.deepslateBricks.name,
+  P.stoneBrick.name,
+  P.coarseDirt.name,
+  P.greenGlass.name,
+  P.limeGlass.name,
+  P.cyanGlass.name,
+  P.purpleGlass.name,
+  P.magentaGlass.name,
+  P.lightBlueGlass.name,
+]);
+
 async function parseSubChunk(payload: Buffer): Promise<number[]> {
   const parsed = (await entryContentTypeToFormatMap.SubChunkPrefix.parse(payload)) as unknown as {
     value: { layers: { value: { value: Array<{ block_indices: { value: { value: number[] } } }> } } };
@@ -305,6 +329,83 @@ describe("terrain", () => {
     expect(outerFraction).toBeLessThan(0.35);
   });
 
+  test("every landmark is reachable on foot from the road network", () => {
+    // The hand-authored roads reach the inner map; this asserts the outer ring
+    // is not stranded. A landmark whose nearest road is over the void gulf
+    // (the Citadel chain, which is crossed by the glass bridges instead) is
+    // exempt - that crossing is deliberate, and paving over the gulf would
+    // destroy the void-castle sequence.
+    const world = generateWorld();
+    const gulf = CONFIG.terrain.voidGulf;
+    const exempt = new Set(["citadel", "dungeonChain", "tomb"]);
+    const stranded: string[] = [];
+    for (const landmark of Object.values(LANDMARKS)) {
+      if (exempt.has(landmark.id)) continue;
+      // Walk outward from the landmark gate along the paved surface and see
+      // whether the path network reaches a road column.
+      const f = landmark.footprint;
+      const gate = { x: Math.round((f.x1 + f.x2) / 2), z: f.z2 };
+      let reached = false;
+      for (let r = 6; r <= 160 && !reached; r += 2) {
+        for (let a = 0; a < 16 && !reached; a++) {
+          const ang = (a / 16) * Math.PI * 2;
+          const px = Math.round(gate.x + Math.cos(ang) * r);
+          const pz = Math.round(gate.z + Math.sin(ang) * r);
+          if (!world.inRealm(px, pz) || !world.isLand(px, pz)) continue;
+          if (px < gulf.minX && px > gulf.maxX) continue;
+          const surface = world.surfaceAt(px, pz);
+          const block = world.get(px, surface, pz);
+          // A road or footpath surface: paved stone, not raw ground.
+          if (block && PAVED.has(block.name)) reached = true;
+        }
+      }
+      if (!reached) stranded.push(landmark.name);
+    }
+    expect(stranded, `no walkable route to: ${stranded.join(", ")}`).toEqual([]);
+  });
+
+  test("the footpaths are paved in stained glass, not stone", () => {
+    // The path pass was originally paved in polished deepslate, which made it
+    // indistinguishable from a road and lost the one thing the canon calls
+    // vibrant in this realm. Assert the actual glass: a green centre line,
+    // prism bands either side, and a deepslate kerb framing the glazing.
+    const world = generateWorld();
+    const glass = new Set([
+      P.greenGlass.name,
+      P.limeGlass.name,
+      P.cyanGlass.name,
+      P.purpleGlass.name,
+      P.magentaGlass.name,
+      P.lightBlueGlass.name,
+    ]);
+    let glassCells = 0;
+    let centreLine = 0;
+    let kerb = 0;
+    for (let z = WORLD_MIN_Z; z <= WORLD_MAX_Z; z++) {
+      for (let x = WORLD_MIN_X; x <= WORLD_MAX_X; x++) {
+        if (!world.inRealm(x, z) || !world.isLand(x, z)) continue;
+        const surface = world.surfaceAt(x, z);
+        const block = world.get(x, surface, z);
+        if (!block) continue;
+        if (glass.has(block.name)) {
+          glassCells++;
+          // A centre-line cell has glazed neighbours on both sides of it.
+          if ([-1, 1].every((d) => {
+            const n = world.get(x + d, surface, z);
+            return n !== undefined && glass.has(n.name);
+          })) {
+            centreLine++;
+          }
+        } else if (block.name === P.polishedDeepslate.name) {
+          kerb++;
+        }
+      }
+    }
+    expect(glassCells, "no glazed footpath was laid").toBeGreaterThan(200);
+    expect(centreLine, "the green centre line did not survive").toBeGreaterThan(40);
+    expect(kerb, "the path has no deepslate kerb framing the glazing").toBeGreaterThan(100);
+  });
+
   test("every landmark actually builds something", () => {
     // A landmark that silently produced no geometry is invisible on a top-down
     // map and only shows up in game, so each one is fingerprinted by a block
@@ -328,6 +429,7 @@ describe("terrain", () => {
       glassworks: P.greenGlass.name,
       portalField: P.cryingObsidian.name,
       endRuin: P.endPortal.name,
+      glassGrove: P.darkOakLeaves.name,
     };
     const world = generateWorld();
     for (const landmark of Object.values(LANDMARKS)) {

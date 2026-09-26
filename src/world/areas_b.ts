@@ -18,6 +18,7 @@ import {
   shopInterior,
 } from "./structures.ts";
 import { glassEyeSpire, eyeOculus, hybridPortal } from "./structures_end.ts";
+import { eyeWindow, glassMosaic, prismPillar, seaLanternPost, PRISM, VIVID_PRISM } from "./structures_glass.ts";
 import type { World } from "./world.ts";
 
 function rect(x1: number, z1: number, x2: number, z2: number): RectRegion {
@@ -169,6 +170,32 @@ export function buildGlassworks(world: World): void {
 
   for (let i = 0; i < 5; i++) {
     lampPost(world, cx - 20 + i * 10, cz - halfD - 6, level, style.light, 4);
+  }
+
+  // An outdoor glazing yard north of the hall: three open-fronted pavilions
+  // whose end walls are entirely mosaic, with a great eye on the middle one.
+  // The reference hangs sheets of glazing on open frames like this, and the
+  // hall alone did not read as "a place where glass is made".
+  for (let i = -1; i <= 1; i++) {
+    const px = cx + i * 22;
+    const pz = cz - halfD - 20;
+    const ground = world.surfaceAt(px, pz);
+    for (let x = px - 8; x <= px + 8; x++) {
+      for (let z = pz - 6; z <= pz + 6; z++) {
+        const edge = x === px - 8 || x === px + 8 || z === pz - 6 || z === pz + 6;
+        if (edge) world.set(x, ground + 1, z, style.accent);
+        else world.set(x, ground + 1, z, style.floor);
+      }
+    }
+    world.rectWalls(px - 8, pz - 6, px + 8, pz + 6, ground + 2, ground + 10, style.accent);
+    world.rectWalls(px - 8, pz - 6, px + 8, pz + 6, ground + 11, ground + 11, style.trim);
+    glassMosaic(world, px, ground + 6, pz - 6, 7, 3, true, PRISM, style.trim, 0x2200 + i * 91);
+    glassMosaic(world, px, ground + 6, pz + 6, 7, 3, true, PRISM, style.trim, 0x2400 + i * 91);
+    if (i === 0) eyeWindow(world, px, ground + 6, pz - 6, 6, 3, true, style.trim, 0x2600);
+    prismPillar(world, px - 6, pz, ground + 2, 8, VIVID_PRISM, 0x2700 + i);
+    prismPillar(world, px + 6, pz, ground + 2, 8, VIVID_PRISM, 0x2800 + i);
+    seaLanternPost(world, px, pz + 8, ground + 1, 4);
+    world.protect(px, pz, 9);
   }
 }
 

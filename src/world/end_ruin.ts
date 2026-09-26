@@ -12,6 +12,7 @@ import {
   statue,
 } from "./structures.ts";
 import { endGatewayMarker, endPortalPlatform, eyeOculus, glassEyeSpire } from "./structures_end.ts";
+import { eyeWindow, glassMosaic, seaLanternPost, VIVID_PRISM } from "./structures_glass.ts";
 
 function rect(x1: number, z1: number, x2: number, z2: number) {
   return { kind: "rect" as const, x1, z1, x2, z2 };
@@ -139,5 +140,22 @@ export function buildEndRuin(world: World): void {
   gatehouse(world, cx, cz + 32, level, style, 2, { height: 9 });
   for (let i = 0; i < 4; i++) {
     statue(world, cx - 12 + i * 8, cz + 36, level, 1, style);
+  }
+
+  // A colonnade of glazed screens ringing the plaza, each one a big eye set in
+  // a mosaic sheet - the reference lines its dark plazas with exactly these.
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + 0.2;
+    const px = cx + Math.round(Math.cos(a) * 34);
+    const pz = cz + Math.round(Math.sin(a) * 34);
+    if (!world.inRealm(px, pz)) continue;
+    const ground = world.surfaceAt(px, pz);
+    for (let dx = -5; dx <= 5; dx++) {
+      world.column(px + dx, pz, ground + 1, ground + 12, P.obsidian);
+    }
+    glassMosaic(world, px, ground + 8, pz, 5, 4, true, plazaGlass, P.obsidian, 0x5a00 + i * 37);
+    eyeWindow(world, px, ground + 8, pz, 4, 3, true, P.obsidian, 0x5b00 + i * 37, VIVID_PRISM);
+    seaLanternPost(world, px + 7, pz, ground + 1, 4);
+    world.protect(px, pz, 6);
   }
 }
