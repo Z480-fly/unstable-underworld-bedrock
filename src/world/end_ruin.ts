@@ -11,7 +11,7 @@ import {
   pad,
   statue,
 } from "./structures.ts";
-import { endGatewayMarker, endPortalPlatform, glassEyeSpire } from "./structures_end.ts";
+import { endGatewayMarker, endPortalPlatform, eyeOculus, glassEyeSpire } from "./structures_end.ts";
 
 function rect(x1: number, z1: number, x2: number, z2: number) {
   return { kind: "rect" as const, x1, z1, x2, z2 };
@@ -84,6 +84,12 @@ export function buildEndRuin(world: World): void {
   glassEyeSpire(world, cx - 16, cz - 14, level + 1, 22);
   glassEyeSpire(world, cx + 18, cz + 12, level + 1, 18);
   glassEyeSpire(world, cx + 10, cz - 20, level + 1, 16);
+  glassEyeSpire(world, cx - 26, cz + 24, level + 1, 19);
+  glassEyeSpire(world, cx + 26, cz - 26, level + 1, 20);
+  glassEyeSpire(world, cx - 4, cz + 27, level + 1, 15);
+  // Two flat eyes set into the plaza, flanking the central end-portal dais.
+  eyeOculus(world, cx - 14, cz, level + 3, 4, plazaGlass);
+  eyeOculus(world, cx + 14, cz, level + 3, 4, plazaGlass);
 
   for (let i = 0; i < 28; i++) {
     const x = cx - 30 + rng.int(0, 60);

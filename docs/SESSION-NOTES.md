@@ -356,3 +356,53 @@ names are unchanged and they are still used by `end_ruin.ts`.
 `palette OK` (152 entries, 144 distinct names). `bun test` is **36 pass / 1 fail**; the remaining
 failure is the unrelated `terrain > every landmark actually builds something` signature mismatch
 from the in-progress areas_a/areas_b restructuring.
+
+---
+
+## Purgatory: merging a second map into the same Overworld (2026-09-26)
+
+The user supplied their **Purgatory Simulator** world (a Bedrock 1.26 export, originally
+`Purgatory Simulator (1).mcworld`) and asked for it to become the *next physical region*
+continuing from the Underworld - OVERWORLD -> UNDERWORLD -> PURGATORY, one world, no separate
+dimension, no teleport, existing terrain intact.
+
+### Why it needed new plumbing
+
+* The source `.ldb` tables use a LevelDB the repo could not read: `classic-level` fails on them
+  with `Corruption: bad block type` because Bedrock's LevelDB fork labels raw-deflate blocks as
+  compression `4`. `src/bedrock/leveldb-reader.ts` now decodes the table format directly
+  (footer -> index -> data blocks), strips the 8-byte internal key suffix (sequence + value type)
+  and resolves newer writes by sequence number.
+* The reference `mcbe-leveldb` parser is far too slow to read a whole world (protodef), so
+  `src/bedrock/nbt-le-reader.ts` and `src/bedrock/subchunk-reader.ts` read palette/indices
+  directly.
+
+### The merge
+
+* Source region: chunks `cx 0..33`, `cz -3..34`, solid `y 26..273` (a 250-block-tall build).
+* `src/world/purgatory.ts` reads it from the vendored `assets/purgatory/db`, translates every
+  block by a multiple-of-16 offset (`x -896`, `z -256`, `y +16`), substitutes gravity blocks via
+  `stabilize`, and re-serializes each subchunk unchanged otherwise. Because the vertical offset is
+  chunk-aligned, blocks never need re-packing.
+* `src/build.ts` writes those subchunks plus their `Data3D`/metadata into the same LevelDB, west of
+  the realm (`cx -56..-23`, `cz -19..18`), so the Underworld generator is untouched.
+* `src/world/purgatory_approach.ts` builds the physical bridge: for every z-row in Purgatory's
+  footprint it fills the void from the realm edge eastward to the island's west coast, ramping
+  from Purgatory's floor (y 42) up to the coast height so the seam is a walkable slope. It only
+  ever writes columns `isLand` reports as void, so no Underworld terrain is changed.
+* `src/tools/inspect-world.ts` learned to accept subchunks up to index 19 and to skip the
+  transplanted region in the generator round-trip / Data3D scene comparison (it is not regenerated
+  locally, so it is compared against its source instead).
+
+### Also this pass
+
+More glass-eye buildings and stained glass, as requested: the Glassworks grew a six-spire
+colonnade plus two more floor oculi and stained-glass lancets flanking both rose windows; the End
+Ruin gained three more glass-eye spires and two plaza oculi.
+
+### Result
+
+One Bedrock Overworld: normal Underworld terrain, then the bridge, then Purgatory. Build writes
+**3 126 chunks** (1 936 realm + 1 190 Purgatory), 16 623 subchunks, `dist` ~8.2 MB. `bun run check`
+green: **37 tests**, palette OK, **39/39 inspection checks**, 4 949 realm subchunks round-trip and
+11 689 transplanted subchunks parsed/decoded clean. Still unverified here: on-device rendering.

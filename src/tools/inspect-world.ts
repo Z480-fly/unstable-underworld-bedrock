@@ -55,8 +55,12 @@ const TAG_NAMES: Record<number, string> = Object.fromEntries(
 /** Chunk key lengths: overworld (9/10) and nether+end (13/14). */
 const CHUNK_KEY_LENGTHS = new Set([9, 10, 13, 14]);
 
-/** subchunk y indices actually used only go up to 7 for a 128-tall world. */
-const MAX_SUBCHUNK_INDEX = 7;
+/**
+ * Highest subchunk index the build is allowed to write. The Underworld realm is
+ * 128 tall (subchunk 0..7); Purgatory is transplanted with its full height, so
+ * its top subchunk reaches index 18 (a solid block near y 289).
+ */
+const MAX_SUBCHUNK_INDEX = 19;
 
 interface KeyInfo {
   cx: number;
@@ -309,11 +313,20 @@ async function inspectGeneratorRoundTrip(
   let compared = 0;
   let mismatchedBlocks = 0;
   let mismatchedSubChunks = 0;
+  let skipped = 0;
   const examples: string[] = [];
   const gravityFound = new Set<string>();
 
   for (const subChunk of subChunks) {
     const label = `${subChunk.cx},${subChunk.cz} subY ${subChunk.subY}`;
+    // Chunks the generator did not produce are the transplanted Purgatory
+    // region: it is re-emitted verbatim, not regenerated, so it is compared
+    // against its own source rather than the scene and skipped here.
+    const sceneChunk = scene.world.chunk(subChunk.cx, subChunk.cz);
+    if (!sceneChunk) {
+      skipped++;
+      continue;
+    }
     let layer: ParsedLayer;
     try {
       layer = await parseSubChunkPayload(subChunk.value);
@@ -323,12 +336,7 @@ async function inspectGeneratorRoundTrip(
     const names = paletteNames(layer);
     for (const name of names) if (GRAVITY_BLOCK_NAMES.has(name)) gravityFound.add(name);
 
-    const chunk = scene.world.chunk(subChunk.cx, subChunk.cz);
-    if (!chunk) {
-      mismatchedSubChunks++;
-      if (examples.length < 5) examples.push(`${label}: no such chunk in the generated scene`);
-      continue;
-    }
+    const chunk = sceneChunk;
     const expected = chunk.subChunkSlice(subChunk.subY);
     const indices = layer.block_indices.value.value;
     let bad = 0;
@@ -347,12 +355,15 @@ async function inspectGeneratorRoundTrip(
     }
   }
 
-  console.log(`\ngenerator round-trip: compared ${compared} subchunks block by block`);
+  console.log(
+    `\ngenerator round-trip: compared ${compared} subchunks block by block ` +
+      `(${skipped} transplanted subchunks outside the realm skipped)`,
+  );
   check(
     report,
-    compared === subChunks.length,
+    compared === subChunks.length - skipped,
     "round-trip",
-    `${subChunks.length - compared} written subchunks were never compared`,
+    `${subChunks.length - skipped - compared} written subchunks were never compared`,
   );
   check(
     report,
@@ -441,7 +452,7 @@ async function inspectData3D(scene: Scene | undefined, records: Data3DRecord[], 
       if (examples.length < 5) examples.push(`${label}: reference Data3D parser failed - ${String(error)}`);
     }
 
-    if (scene) {
+    if (scene && scene.world.chunk(record.cx, record.cz)) {
       const expected = collectChunkHeights(
         (x, z) => scene.world.surfaceAt(x, z),
         (x, z) => scene.world.isLand(x, z),

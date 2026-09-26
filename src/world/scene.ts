@@ -11,6 +11,7 @@
 
 import { buildAllAreas } from "./areas.ts";
 import { decorate } from "./decorate.ts";
+import { buildPurgatoryApproach } from "./purgatory_approach.ts";
 import { buildRoadNetwork } from "./roads.ts";
 import { carveChasmWalls, generateTerrain, type TerrainStats } from "./terrain.ts";
 import { World } from "./world.ts";
@@ -38,6 +39,8 @@ export function buildSceneWorld(log: (message: string) => void = () => {}): Scen
   carveChasmWalls(world);
   log("building landmarks...");
   buildAllAreas(world);
+  const approach = buildPurgatoryApproach(world);
+  log(`bridging to purgatory: ${approach.columns} columns (x ${approach.minX}..${approach.maxX})`);
   log("painting roads...");
   buildRoadNetwork(world);
   log("scattering detail...");

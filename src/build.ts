@@ -22,6 +22,7 @@ import {
   serializeMetaDataDictionary,
 } from "./bedrock/chunk-metadata.ts";
 import { ZipWriter } from "./bedrock/zip.ts";
+import { loadPurgatoryRegion } from "./world/purgatory.ts";
 import type { World } from "./world/world.ts";
 
 interface BuildOptions {
@@ -179,6 +180,39 @@ async function main(): Promise<void> {
     }
   }
   log(`wrote Data3D + chunk metadata for ${data3dCount} chunks`);
+
+  // -- Purgatory: transplant the user's region east of nothing, west of the
+  // realm, so the world reads OVERWORLD -> UNDERWORLD -> PURGATORY as one
+  // continuous place. The Underworld generator is not involved here; the source
+  // world's own subchunks are re-emitted at an offset (see world/purgatory.ts).
+  log("transplanting purgatory...");
+  const purgatory = loadPurgatoryRegion();
+  const purgatoryByChunk = new Map(purgatory.chunks.map((chunk) => [`${chunk.cx},${chunk.cz}`, chunk] as const));
+  let purgatoryChunks = 0;
+  let purgatorySubChunks = 0;
+  const emptyHeights = new Int16Array(256);
+  for (let cx = purgatory.minCx; cx <= purgatory.maxCx; cx++) {
+    for (let cz = purgatory.minCz; cz <= purgatory.maxCz; cz++) {
+      const chunk = purgatoryByChunk.get(`${cx},${cz}`);
+      await db.putChunkVersion(cx, cz, CONFIG.chunkVersion);
+      await db.putFinalizedState(cx, cz, 2);
+      await db.putData3D(cx, cz, serializeData3D(chunk ? chunk.heights : emptyHeights));
+      await db.putMetaDataHash(cx, cz, metaDataHash);
+      await db.putBlendingData(cx, cz, blendingData);
+      await db.putActorDigestVersion(cx, cz, ACTOR_DIGEST_VERSION);
+      data3dCount++;
+      purgatoryChunks++;
+      if (!chunk) continue;
+      for (const subChunk of chunk.subChunks) {
+        await db.putSubChunk(chunk.cx, chunk.cz, subChunk.subY, subChunk.value);
+        purgatorySubChunks++;
+      }
+    }
+  }
+  log(
+    `transplanted purgatory: ${purgatoryChunks} chunks, ${purgatorySubChunks} subchunks ` +
+      `(cx ${purgatory.minCx}..${purgatory.maxCx}, cz ${purgatory.minCz}..${purgatory.maxCz})`,
+  );
 
   await db.put(Buffer.from("game_flatworldlayers", "utf8"), Buffer.from("[]", "utf8"));
   await db.compactAll();

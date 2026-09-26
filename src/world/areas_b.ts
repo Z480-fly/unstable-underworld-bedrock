@@ -146,9 +146,26 @@ export function buildGlassworks(world: World): void {
   // The color shaft above now has a literal eye looking up at it from the
   // hall floor - the Soul Keepers' own work, set into the floor they glaze.
   eyeOculus(world, cx, cz, level, 6, glazing);
+  // ...and two smaller oculi set into the side aisles, so the hall floor reads
+  // as a face looking up at the shaft.
+  eyeOculus(world, cx - 22, cz, level, 4, glazing);
+  eyeOculus(world, cx + 22, cz, level, 4, glazing);
 
+  // A colonnade of glass-eye spires down both long sides, not just at the
+  // corners: the glazing hall's signature silhouette.
   glassEyeSpire(world, cx - 32, cz + 8, level + 1, 20);
   glassEyeSpire(world, cx + 32, cz - 6, level + 1, 17);
+  glassEyeSpire(world, cx - 32, cz - 26, level + 1, 18);
+  glassEyeSpire(world, cx + 32, cz + 26, level + 1, 21);
+  glassEyeSpire(world, cx - 32, cz - 8, level + 1, 23);
+  glassEyeSpire(world, cx + 32, cz + 10, level + 1, 19);
+
+  // Stained-glass lancets flanking the two rose windows, so the end walls are
+  // glazed from floor to vault instead of only at the rose.
+  for (const wallZ of [cz - halfD, cz + halfD]) {
+    glazedPanel(world, rect(cx - 27, wallZ, cx - 12, wallZ), level + 3, top - 4, glazing, frame);
+    glazedPanel(world, rect(cx + 12, wallZ, cx + 27, wallZ), level + 3, top - 4, glazing, frame);
+  }
 
   for (let i = 0; i < 5; i++) {
     lampPost(world, cx - 20 + i * 10, cz - halfD - 6, level, style.light, 4);
