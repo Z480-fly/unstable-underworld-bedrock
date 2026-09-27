@@ -578,6 +578,8 @@ describe("terrain", () => {
       glassGrove: P.purpleGlass.name,
       cathedral: P.blueGlass.name,
       splice: P.enchantingTable.name,
+      ancientCity: P.chiseledDeepslate.name,
+      wardenArena: P.sculkShrieker.name,
     };
     const world = generateWorld();
     for (const landmark of Object.values(LANDMARKS)) {
@@ -600,5 +602,37 @@ describe("terrain", () => {
       expect(found, `${landmark.name} never placed a ${signature}`).toBeGreaterThan(0);
       expect(raised, `${landmark.name} has nothing built above the ground`).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("the Sunken City and the Warden's Deep Dark", () => {
+  test("builds a real sculk bowl for the arena, not just a ring on a plate", () => {
+    const world = generateWorld();
+    const { x: cx, z: cz } = LANDMARKS.wardenArena.center;
+    const rim = world.surfaceAt(cx + 21, cz);
+    const floor = world.surfaceAt(cx, cz);
+    expect(floor, "the middle of the arena should be sunk below its rim").toBeLessThan(rim - 10);
+    // the bowl must actually be a bowl: descend outward on both axes
+    expect(world.surfaceAt(cx, cz + 10)).toBeLessThan(rim);
+    expect(world.surfaceAt(cx - 10, cz)).toBeLessThan(rim);
+  });
+
+  test("sculks the floor of the pit", () => {
+    const world = generateWorld();
+    const { x: cx, z: cz } = LANDMARKS.wardenArena.center;
+    let sculk = 0;
+    for (let dz = -12; dz <= 12; dz++)
+      for (let dx = -12; dx <= 12; dx++) {
+        const s = world.surfaceAt(cx + dx, cz + dz);
+        for (let y = s; y <= s + 1 && y < CONFIG.maxY; y++)
+          if (world.get(cx + dx, y, cz + dz)?.name === P.sculk.name) sculk++;
+      }
+    expect(sculk, "the pit floor should be spreading with sculk").toBeGreaterThan(200);
+  });
+
+  test("places the shrieker disarmed, so opening the world cannot spawn a warden", () => {
+    // can_summon:false matters here - a world that spawns a boss on load is
+    // hostile, and the arena is meant to be found on the player's terms.
+    expect(P.sculkShrieker.states).toMatchObject({ can_summon: false });
   });
 });

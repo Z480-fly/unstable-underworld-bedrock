@@ -197,6 +197,22 @@ export const LANDMARKS = {
     source:
       "The Soul Keepers' own glazing grown instead of built: a colossal stained-glass tree with an eye in its bole, ringed by lesser trees and a hall of mosaic walls.",
   },
+  ancientCity: {
+    id: "ancientCity",
+    name: "The Sunken City",
+    center: { x: 280, z: 290 },
+    footprint: { kind: "rect", x1: 234, z1: 250, x2: 326, z2: 330 },
+    source:
+      "An Ancient City grown into the void ring east of the realm: deepslate-brick halls on a broken plate, a sculk pit sunk under its middle, reached by one bridge. The place is built; what walks it is not.",
+  },
+  wardenArena: {
+    id: "wardenArena",
+    name: "The Warden's Deep Dark",
+    center: { x: 214, z: 208 },
+    footprint: { kind: "rect", x1: 190, z1: 188, x2: 238, z2: 228 },
+    source:
+      "A lit ring walk around a sculk bowl, with a switchback stair down to a floor of spreading sculk and a shrieker at the centre - an arena for a fight that has not happened yet.",
+  },
   endRuin: {
     id: "endRuin",
     name: "The End Ruin",

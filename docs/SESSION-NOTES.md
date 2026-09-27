@@ -406,3 +406,56 @@ One Bedrock Overworld: normal Underworld terrain, then the bridge, then Purgator
 **3 126 chunks** (1 936 realm + 1 190 Purgatory), 16 623 subchunks, `dist` ~8.2 MB. `bun run check`
 green: **37 tests**, palette OK, **39/39 inspection checks**, 4 949 realm subchunks round-trip and
 11 689 transplanted subchunks parsed/decoded clean. Still unverified here: on-device rendering.
+
+---
+
+## The Sunken City and the Warden's Deep Dark (2026-09-27)
+
+Two landmarks built in the void ring east of the realm, filling the leftover air the request
+described ("theres a lot of left over air blocks on the side"). The realm's void is 141 732
+columns and sits almost entirely in the corner tiles; the north-east one is fully void and clear
+of the Glassworks at (188, 226).
+
+* **The Sunken City** (280, 290) - an Ancient City grown on a broken deepslate plate: a spine
+  corridor, three halls with chiseled door frames and corner pillars, polished-deepslate accent
+  courses, sculk creeping in from the hall corners, and a single bridge back to the realm so it
+  is walkable rather than an orphan island.
+* **The Warden's Deep Dark** (214, 208) - a lit ring walk around a parabolic sculk bowl, buttressed
+  and lit with sea-lantern posts, with a switchback stair down to a floor of spreading sculk, ten
+  half-buried sculk sensors on the slope and a shrieker at the centre.
+
+### What this pass deliberately did NOT build
+
+The same request asked for mobs: a green Soul Keeper wandering trader with custom trades, skeletons
+with enchanted flame bows and Protection IV netherite, zombies with Sharpness/Fire Aspect, blazes
+firing wither skulls, and a spawning warden. **None of that is world data.** Those are entities
+with behaviour, attributes, equipment, trade tables and spawn rules - a behaviour pack plus a
+resource pack. This project is scoped map-only ("no bots or NPCs, no combat systems, no kits, no
+extra gameplay mechanics and no addons") and `src/build.ts` writes `world_behavior_packs.json` as
+`[]`, so there is no pack layer to extend. Building it would mean adding packs to the
+`.mcworld` and changing the project's stated scope, which is a decision for the maintainer, not a
+quiet extension of a map generator.
+
+What *was* built is the **place** those mobs would occupy - the arena, the pit, the city - as
+geometry. The shrieker is placed with `can_summon: false` (already how `P.sculkShrieker` is defined)
+so opening the world cannot spawn a Warden before the player walks in; a world that spawns a boss
+on load is hostile.
+
+### Two bugs worth recording
+
+* **The audit caught a hollow landmark.** `wardenPit` was being called with the *city's* centre, so
+  the arena's own footprint contained no pit at all - a ring walk and a stair around nothing. The
+  landmark audit reported `sculk_shrieker: 0` inside the arena, which is what surfaced it. The pit
+  now sinks in the arena itself.
+* **`sculkPatch` laid sculk at a fixed y.** In a parabolic bowl that buries the growth under the
+  slope everywhere except the deepest few columns, so 477 blocks existed but almost none were
+  visible. It now writes to each column's own `surfaceAt`. The test asserts on *visible* surface
+  sculk specifically so this cannot regress into being buried again.
+
+### Result
+
+Two new landmarks, **22 total**. `bun run check` green: **47 tests** (3 new), palette OK (172
+entries), **39/39 inspection checks**, 5 374 realm subchunks round-tripped block by block.
+`dist` ~8.74 MB. Probed the written `.mcworld` directly: 1762 chiseled_deepslate, 1026
+cracked_deepslate_bricks, 144 sculk, 46 sculk_vein, 25 sculk_catalyst, 14 sculk_sensor,
+2 sculk_shrieker, across 27 chunks in the city's footprint.
