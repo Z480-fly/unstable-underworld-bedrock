@@ -12,7 +12,7 @@
 import { buildAllAreas } from "./areas.ts";
 import { decorate } from "./decorate.ts";
 import { buildPurgatoryApproach } from "./purgatory_approach.ts";
-import { buildLandmarkPaths, buildRoadNetwork } from "./roads.ts";
+import { buildLandmarkPaths, buildPurgatoryAvenue, buildRoadNetwork } from "./roads.ts";
 import { carveChasmWalls, generateTerrain, type TerrainStats } from "./terrain.ts";
 import { World } from "./world.ts";
 
@@ -43,13 +43,24 @@ export function buildSceneWorld(log: (message: string) => void = () => {}): Scen
   log(`bridging to purgatory: ${approach.columns} columns (x ${approach.minX}..${approach.maxX})`);
   log("painting roads...");
   buildRoadNetwork(world);
+  log("scattering detail...");
+  decorate(world);
+  // The paths are laid *after* the detail pass on purpose. Detail scatters
+  // masonry and terrain debris on unprotected columns, and it was dropping
+  // blocks back onto the Purgatory avenue in two places, punching holes in a
+  // route that is meant to be walkable end to end. Paths are infrastructure:
+  // nothing should be able to break them after the fact.
   const paths = buildLandmarkPaths(world);
   const pathColumns = paths.reduce((sum, p) => sum + p.painted, 0);
   log(
     `landmark paths: ${paths.length} footpaths, ${pathColumns} paved columns ` +
       `(${paths.map((p) => p.id).join(", ") || "none"})`,
   );
-  log("scattering detail...");
-  decorate(world);
+  const avenue = buildPurgatoryAvenue(world);
+  log(
+    avenue
+      ? `purgatory avenue: ${avenue.painted} lit glass columns, x ${avenue.from.x}..${avenue.to.x} at z ${avenue.from.z}`
+      : "purgatory avenue: NOT BUILT",
+  );
   return { world, terrain };
 }

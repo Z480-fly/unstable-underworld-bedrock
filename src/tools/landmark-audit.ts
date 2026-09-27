@@ -45,6 +45,7 @@ const SIGNATURES: Record<string, string> = {
   portalLobby: "minecraft:portal",
   glassworks: "minecraft:green_stained_glass",
   cathedral: "minecraft:blue_stained_glass",
+  splice: "minecraft:enchanting_table",
   portalField: "minecraft:crying_obsidian",
   endRuin: "minecraft:end_portal",
   glassGrove: "minecraft:purple_stained_glass",

@@ -455,6 +455,103 @@ describe("terrain", () => {
     expect(heights.size, `glass occupies only ${heights.size} distinct heights`).toBeGreaterThanOrEqual(5);
   });
 
+  test("every landmark has a lit green-glass path reaching its gate", () => {
+    // The request was a path to *every* structure, not only to the ones the
+    // hand-authored roads missed. Asserted per-landmark: within a short walk of
+    // the landmark's gate there must be green glass paving, and a glowstone
+    // course under it, because stained glass does not light itself.
+    const world = generateWorld();
+    const missing: string[] = [];
+    for (const lm of Object.values(LANDMARKS)) {
+      const f = lm.footprint;
+      // Scan the whole footprint boundary, not just four edge midpoints: a path
+      // is laid from whichever point on the edge is nearest the road, which for
+      // an off-centre landmark is a corner, and checking only the midpoints
+      // would report a perfectly good path as missing.
+      const gates: Array<{ x: number; z: number }> = [];
+      for (let x = f.x1; x <= f.x2; x += 4) {
+        gates.push({ x, z: f.z1 }, { x, z: f.z2 });
+      }
+      for (let z = f.z1; z <= f.z2; z += 4) {
+        gates.push({ x: f.x1, z }, { x: f.x2, z });
+      }
+      let found = false;
+      // The path signature is green glass sitting directly on glowstone. Plain
+      // green glass is not enough: the landmarks themselves are glazed, so
+      // matching on colour alone would pass on a building's own windows and
+      // never prove a path was laid.
+      outer: for (const gate of gates) {
+        for (let r = 2; r <= 30; r++) {
+          for (let a = 0; a < 24; a++) {
+            const ang = (a / 24) * Math.PI * 2;
+            const px = Math.round(gate.x + Math.cos(ang) * r);
+            const pz = Math.round(gate.z + Math.sin(ang) * r);
+            if (!world.inRealm(px, pz) || !world.isLand(px, pz)) continue;
+            const s = world.surfaceAt(px, pz);
+            if (world.get(px, s, pz)?.name !== P.greenGlass.name) continue;
+            if (world.get(px, s - 1, pz)?.name !== P.glowstone.name) continue;
+            found = true;
+            break outer;
+          }
+        }
+      }
+      if (!found) missing.push(`${lm.id} (no lit green-glass path at any gate)`);
+    }
+    expect(missing, `unreachable or unlit: ${missing.join("; ")}`).toEqual([]);
+  });
+
+  test("a lit green-glass avenue runs west from the Underworld into Purgatory", () => {
+    // Purgatory occupies world x -896..-353, immediately west of the realm edge
+    // at -352. The avenue has to actually reach the threshold, not stop at the
+    // island's coast with a gap over the void.
+    const world = generateWorld();
+    const centreZ = 40;
+    let greenRun = 0;
+    let best = 0;
+    let lit = 0;
+    for (let x = -352; x <= -200; x++) {
+      if (!world.isLand(x, centreZ)) {
+        greenRun = 0;
+        continue;
+      }
+      const s = world.surfaceAt(x, centreZ);
+      if (world.get(x, s, centreZ)?.name !== P.greenGlass.name) {
+        greenRun = 0;
+        continue;
+      }
+      greenRun++;
+      if (greenRun > best) best = greenRun;
+      if (world.get(x, s - 1, centreZ)?.name === P.glowstone.name) lit++;
+    }
+    expect(best, "no unbroken green-glass run along z=40").toBeGreaterThan(40);
+    // The avenue has to arrive at the very edge of the realm.
+    expect(best, `the avenue only runs ${best} blocks west`).toBeGreaterThan(120);
+    expect(lit, "the avenue is not lit from below").toBeGreaterThan(100);
+  });
+
+  test("the Splice has fused workstations - blocks spliced into portal frames", () => {
+    // The "corrupted block that is easy to make" the request asked for: real
+    // blocks in an impossible arrangement. Assert on the actual fusion - a
+    // crafting table with an enchanting table stacked on it, ringed by end
+    // portal frames - because that is the whole point of the build.
+    const lm = LANDMARKS.splice;
+    const world = generateWorld();
+    let fusions = 0;
+    let frames = 0;
+    for (let z = lm.footprint.z1; z <= lm.footprint.z2; z++) {
+      for (let x = lm.footprint.x1; x <= lm.footprint.x2; x++) {
+        if (world.get(x, world.surfaceAt(x, z) + 1, z)?.name !== P.craftingTable.name) continue;
+        if (world.get(x, world.surfaceAt(x, z) + 2, z)?.name !== P.enchantingTable.name) continue;
+        fusions++;
+        for (const [dx, dz] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+          if (world.get(x + dx, world.surfaceAt(x, z) + 2, z + dz)?.name === "minecraft:end_portal_frame") frames++;
+        }
+      }
+    }
+    expect(fusions, "no crafting-table-into-enchanting-table fusions").toBeGreaterThan(3);
+    expect(frames, "the fusions are not ringed in end-portal frames").toBeGreaterThan(8);
+  });
+
   test("every landmark actually builds something", () => {
     // A landmark that silently produced no geometry is invisible on a top-down
     // map and only shows up in game, so each one is fingerprinted by a block
@@ -480,6 +577,7 @@ describe("terrain", () => {
       endRuin: P.endPortal.name,
       glassGrove: P.purpleGlass.name,
       cathedral: P.blueGlass.name,
+      splice: P.enchantingTable.name,
     };
     const world = generateWorld();
     for (const landmark of Object.values(LANDMARKS)) {

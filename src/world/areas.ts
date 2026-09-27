@@ -25,6 +25,7 @@ import {
 import { buildEndRuin } from "./end_ruin.ts";
 import { buildGlassGrove } from "./glass_grove.ts";
 import { buildCathedral } from "./glass_cathedral.ts";
+import { buildSplice } from "./splice.ts";
 
 export function buildAllAreas(world: World): void {
   buildBreach(world);
@@ -46,6 +47,7 @@ export function buildAllAreas(world: World): void {
   buildEndRuin(world);
   buildGlassGrove(world);
   buildCathedral(world);
+  buildSplice(world);
 }
 
 export {
@@ -71,3 +73,4 @@ export {
 export { buildEndRuin } from "./end_ruin.ts";
 export { buildGlassGrove } from "./glass_grove.ts";
 export { buildCathedral } from "./glass_cathedral.ts";
+export { buildSplice } from "./splice.ts";

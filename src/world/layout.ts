@@ -173,6 +173,14 @@ export const LANDMARKS = {
     source:
       "The field of gates east of the labyrinth: portals cut short, sheared off mid-frame and collapsed where the Underworld's links failed.",
   },
+  splice: {
+    id: "splice",
+    name: "The Splice - the fused workshop",
+    center: { x: 196, z: -16 },
+    footprint: { kind: "rect", x1: 152, z1: -60, x2: 240, z2: 28 },
+    source:
+      "The reference's great glazed hall: a black deepslate shell hung with rainbow glass, full of workstations that have been cut in half and welded back together - a crafting table spliced into an enchanting table, both set in end-portal frames.",
+  },
   cathedral: {
     id: "cathedral",
     name: "The Glass Cathedral & the Layered Sky",
@@ -267,6 +275,7 @@ export const TERRAIN_REGIONS: TerrainRegion[] = [
   { id: "glassGroveShelf", shape: { kind: "rect", x1: 6, z1: -286, x2: 116, z2: -180 }, heightDelta: 2, relief: 0.3 },
   // The cathedral stands on its own flattened shelf in the dark north-west.
   { id: "cathedralShelf", shape: { kind: "rect", x1: -212, z1: -252, x2: -68, z2: -108 }, heightDelta: 3, relief: 0.3 },
+  { id: "spliceShelf", shape: { kind: "rect", x1: 144, z1: -68, x2: 248, z2: 36 }, heightDelta: 2, relief: 0.3 },
 ];
 
 export interface RoadPath {
