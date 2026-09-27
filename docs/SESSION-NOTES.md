@@ -949,3 +949,43 @@ particular is the most likely thing to still need adjusting.
 
 Full gate: typecheck clean, **74/74 tests**, palette OK, `world OK (40 checks)`,
 `pack OK`.
+
+---
+
+## Making the pack downloadable: `.mcpack` archives, and a world that asks for them
+
+A download link for a pack is 38 separate files. That is fine for git and
+useless on a phone, and Bedrock's "Import Packs from File" takes exactly one
+file per pack — so the thing that actually gets tested has to be an archive.
+
+`src/tools/pack-mcpack.ts` produces `dist/soul-keepers-rp.mcpack` and
+`dist/soul-keepers-bp.mcpack`. Two details are easy to get wrong and produce an
+archive that unpacks but does not import:
+
+- **`manifest.json` must be at the root of the zip.** Zipping the folder gives
+  `soul-keepers-bp/manifest.json`, which Bedrock opens as a folder with no
+  manifest and silently ignores. The tool throws if that happens, and a test
+  reads the zip's central directory directly rather than trusting the tool.
+- The BP must declare a dependency on the RP's UUID or it imports fine and then
+  refuses to enable. The tool asserts it.
+
+### The world now asks for the packs by name
+
+`world_behavior_packs.json` was `"[]"`, which is what a vanilla phone export
+writes and what this build has always written. It imports perfectly and gives
+you a world with no mobs in it and nothing on screen to explain why.
+
+It now carries the pack UUIDs, read from the manifests rather than typed in, so
+that importing the two `.mcpack` files into the profile once is enough and the
+mobs are simply there when the world opens. A linked behaviour/resource pair is
+a **single** entry with the resource pack under `dependencies` — that is how
+Bedrock records "these two travel together".
+
+This is a real change to the artifact and it is the one part of this that
+cannot be verified from here: it depends on how a phone resolves a pack id it
+has imported. If the mobs do not appear, the fallback is two taps in the
+world's Settings → Packs, and the UUIDs are asserted against the manifests by a
+test so they cannot drift apart.
+
+Full gate: typecheck clean, **76/76 tests**, palette OK, `world OK (40 checks)`,
+both `.mcpack` archives built and verified.

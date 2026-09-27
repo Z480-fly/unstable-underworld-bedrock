@@ -6,6 +6,7 @@
  */
 
 import { mkdir, rm, writeFile, stat, readdir, readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { CONFIG, REALM, CHUNKS_X, CHUNKS_Z } from "./world/config.ts";
 import { buildSceneWorld } from "./world/scene.ts";
@@ -29,6 +30,49 @@ interface BuildOptions {
   worldName: string;
   subChunkVersion: 8 | 9;
   zip: boolean;
+}
+
+/** One entry in world_behavior_packs.json / world_resource_packs.json. */
+interface WorldPackReference {
+  pack_id: string;
+  version: number[];
+  dependencies?: Record<string, number[]>;
+}
+
+/**
+ * The pack UUIDs to bake into the world, read from the pack manifests.
+ *
+ * A linked behaviour/resource pair is a *single* entry in
+ * `world_behavior_packs.json`, with the resource pack named under
+ * `dependencies` — that is how Bedrock records "these two travel together",
+ * and it is why the resource pack does not also need its own behaviour entry.
+ *
+ * Returns an empty list when the pack folders are not present, because a world
+ * with no add-ons in it is still a perfectly good world and the build should
+ * not fail just because someone deleted the packs.
+ */
+function worldPackReferences(kind: "behaviour" | "resource" = "behaviour"): WorldPackReference[] {
+  const read = (folder: string): { uuid: string; version: number[]; dependencies?: Array<{ uuid: string; version?: number[] }> } | null => {
+    try {
+      const raw = readFileSync(join(process.cwd(), "packs", folder, "manifest.json"), "utf8");
+      const parsed = JSON.parse(raw) as {
+        header: { uuid: string; version: number[] };
+        dependencies?: Array<{ uuid: string; version?: number[] }>;
+      };
+      return { uuid: parsed.header.uuid, version: parsed.header.version, dependencies: parsed.dependencies };
+    } catch {
+      return null;
+    }
+  };
+
+  const rp = read("soul-keepers-rp");
+  const bp = read("soul-keepers-bp");
+  if (!rp || !bp) return [];
+
+  if (kind === "resource") return [{ pack_id: rp.uuid, version: rp.version }];
+  const dependencies: Record<string, number[]> = {};
+  for (const dep of bp.dependencies ?? []) dependencies[dep.uuid] = dep.version ?? bp.version;
+  return [{ pack_id: bp.uuid, version: bp.version, dependencies }];
 }
 
 function parseArgs(argv: string[]): BuildOptions {
@@ -107,10 +151,22 @@ async function main(): Promise<void> {
   await writeFile(join(worldDir, "level.dat"), levelDat);
   await writeFile(join(worldDir, "levelname.txt"), options.worldName, "utf8");
   await writeFile(join(worldDir, "world_icon.jpeg"), icon);
-  // iOS Bedrock expects these (phone exports write "[]"); missing them can
-  // cause some devices to reject the import.
-  await writeFile(join(worldDir, "world_behavior_packs.json"), "[]", "utf8");
-  await writeFile(join(worldDir, "world_resource_packs.json"), "[]", "utf8");
+  // iOS Bedrock expects these files to exist; missing them can cause some
+  // devices to reject the import outright. What goes *in* them is the whole
+  // question of whether the Soul Keepers are live the moment the world opens.
+  //
+  // Written as "[]" they import fine and the player gets a world with no mobs
+  // in it and no indication why. Written with the pack UUIDs, the world asks
+  // for those packs by name, so importing the two .mcpack files once into the
+  // profile is enough and the mobs are simply there. The UUIDs are read from
+  // the manifests rather than typed in here, because a duplicated UUID is a
+  // dependency that silently does not resolve.
+  const behaviourPacks = worldPackReferences();
+  if (behaviourPacks.length) {
+    log(`world references ${behaviourPacks.length} behaviour / ${worldPackReferences("resource").length} resource pack(s)`);
+  }
+  await writeFile(join(worldDir, "world_behavior_packs.json"), JSON.stringify(behaviourPacks), "utf8");
+  await writeFile(join(worldDir, "world_resource_packs.json"), JSON.stringify(worldPackReferences("resource")), "utf8");
 
   log("writing chunks to LevelDB...");
   const db = await BedrockWorldDb.open(join(worldDir, "db"));

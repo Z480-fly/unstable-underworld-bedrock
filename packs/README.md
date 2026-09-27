@@ -6,20 +6,34 @@ Warden's Deep Dark, already in the `.mcworld`.
 
 ## Install (iPhone / iPad)
 
-`.mcworld` is a ZIP, but Bedrock will not read packs out of a world folder that
-were not registered with it. The reliable path is to import them as packs:
+Three files, all built by `bun run check`:
 
-1. Unzip `packs/soul-keepers-bp` and `packs/soul-keepers-rp` (or use the
-   `.mcpack` zips if you make them).
-2. Minecraft → **Profile** → the three-dot menu → **Import Packs from File** (or
-   *Import from File* on older builds). Import the **resource pack first**, then
-   the **behaviour pack**. The RP must exist before the BP will enable, because
-   the BP declares a dependency on it.
-3. Create a world with both packs enabled, then import
-   `dist/Underworld-Simulator-Remastered.mcworld` alongside it.
+| File | What it is |
+| --- | --- |
+| `dist/soul-keepers-rp.mcpack` | Resource pack — textures, items, render controllers |
+| `dist/soul-keepers-bp.mcpack` | Behaviour pack — the mobs, their AI, gear and loot |
+| `dist/Underworld-Simulator-Remastered.mcworld` | The map |
 
-To make `.mcpack` files: zip each pack folder so the `manifest.json` sits at the
-*root* of the zip (not inside a parent folder), and rename to `.mcpack`.
+**Order matters: resource pack first, then behaviour pack.** The BP declares a
+dependency on the RP by UUID and will not enable without it, and an import order
+of BP-then-RP looks exactly like the pack being broken.
+
+1. Download `soul-keepers-rp.mcpack`. In Minecraft: **Profile** (or **Global
+   Resources**) → the three-dot menu → **Import Packs from File**. Pick it. It
+   should appear in your pack list.
+2. Download `soul-keepers-bp.mcpack` and import it the same way. Both packs
+   should now be listed, with Soul Keepers showing as active.
+3. Download `Underworld-Simulator-Remastered.mcworld` and import it. The world
+   already names both packs by UUID in `world_behavior_packs.json`, so the mobs
+   are live as soon as it opens — there is nothing to tick in world settings.
+
+If the mobs do not appear, the failure is almost always step 1 or 2: open the
+world's **Settings → Packs** and check that both Soul Keepers entries are
+switched on. A behaviour pack whose resource pack is missing imports cleanly
+and then does nothing.
+
+Rebuild the archives with `bun run build:packs` after editing anything under
+`packs/`.
 
 ## Testing the mobs
 

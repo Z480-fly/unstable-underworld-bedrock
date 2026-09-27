@@ -6,6 +6,7 @@
   "description": "Procedural reconstruction of the Unstable SMP Underworld (Underworld Simulator) map as an importable Minecraft Bedrock .mcworld",
   "scripts": {
     "build:map": "bun run src/build.ts",
+    "build:packs": "bun run src/tools/pack-mcpack.ts",
     "inspect": "bun run src/tools/inspect-world.ts",
     "validate": "bun run src/tools/validate-palette.ts",
     "validate:pack": "bun run src/tools/validate-pack.ts",
@@ -13,7 +14,7 @@
     "audit": "bun run src/tools/landmark-audit.ts",
     "typecheck": "tsc -b --noEmit",
     "test": "bun test",
-    "check": "bun run typecheck && bun test && bun run validate && bun run build:map && bun run inspect"
+    "check": "bun run typecheck && bun test && bun run validate && bun run build:map && bun run build:packs && bun run inspect"
   },
   "dependencies": {
     "classic-level": "^3.0.0",
