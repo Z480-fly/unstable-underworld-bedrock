@@ -566,9 +566,6 @@ export function roseWindow(
  * Ritual split table: crafting_table | portal slice | enchanting_table
  * framed in blackstone/deepslate. Pure vanilla. Zero pack dependency.
  * Footprint ~3x2x1. Safe for LevelDB export.
- *
- * The single minecraft:portal block acts as a glowing vertical "slice"
- * between the two tables so the piece reads as one split ritual object.
  */
 export function splitTable(
   world: World,
@@ -578,33 +575,179 @@ export function splitTable(
   alongX = true,
   style: BuildStyle = BLACKSTONE_STYLE,
 ): void {
-  // floor / base pad
   for (let dx = -1; dx <= 1; dx++) {
     for (let dz = -1; dz <= 1; dz++) {
       world.set(cx + dx, baseY, cz + dz, style.floor);
       world.protect(cx + dx, cz + dz);
     }
   }
-
-  // left table, portal slice, right table
   if (alongX) {
     world.set(cx - 1, baseY + 1, cz, P.craftingTable);
-    world.set(cx,     baseY + 1, cz, P.portal);
+    world.set(cx, baseY + 1, cz, P.portal);
     world.set(cx + 1, baseY + 1, cz, P.enchantingTable);
   } else {
     world.set(cx, baseY + 1, cz - 1, P.craftingTable);
-    world.set(cx, baseY + 1, cz,     P.portal);
+    world.set(cx, baseY + 1, cz, P.portal);
     world.set(cx, baseY + 1, cz + 1, P.enchantingTable);
   }
-
-  // simple frame pillars at the four corners
   for (const [ox, oz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]] as const) {
     world.set(cx + ox, baseY + 1, cz + oz, style.accent);
     world.set(cx + ox, baseY + 2, cz + oz, style.trim);
   }
-
-  // optional light above the slice
   world.set(cx, baseY + 2, cz, style.light);
+}
+
+/** Broken / ruined variant of splitTable. One table missing, debris, crying obsidian. */
+export function brokenSplitTable(
+  world: World,
+  cx: number,
+  cz: number,
+  baseY: number,
+  alongX = true,
+  style: BuildStyle = BLACKSTONE_STYLE,
+): void {
+  const rng = new Rng((cx * 7919 + cz * 104729) ^ 0x5f3a);
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      world.set(cx + dx, baseY, cz + dz, style.floor);
+      world.protect(cx + dx, cz + dz);
+    }
+  }
+  // Keep the portal slice and only one table
+  if (alongX) {
+    world.set(cx, baseY + 1, cz, P.portal);
+    if (rng.chance(0.55)) world.set(cx - 1, baseY + 1, cz, P.craftingTable);
+    else world.set(cx + 1, baseY + 1, cz, P.enchantingTable);
+  } else {
+    world.set(cx, baseY + 1, cz, P.portal);
+    if (rng.chance(0.55)) world.set(cx, baseY + 1, cz - 1, P.craftingTable);
+    else world.set(cx, baseY + 1, cz + 1, P.enchantingTable);
+  }
+  // Debris
+  for (const [ox, oz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]] as const) {
+    if (rng.chance(0.4)) continue;
+    world.set(cx + ox, baseY + 1, cz + oz, rng.chance(0.5) ? P.cryingObsidian : style.accent);
+  }
+}
+
+/** Glass-framed split table — portal slice visible through purple/gray glass. */
+export function glassSplitTable(
+  world: World,
+  cx: number,
+  cz: number,
+  baseY: number,
+  alongX = true,
+  style: BuildStyle = BLACKSTONE_STYLE,
+): void {
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      world.set(cx + dx, baseY, cz + dz, style.floor);
+      world.protect(cx + dx, cz + dz);
+    }
+  }
+  if (alongX) {
+    world.set(cx - 1, baseY + 1, cz, P.craftingTable);
+    world.set(cx, baseY + 1, cz, P.portal);
+    world.set(cx + 1, baseY + 1, cz, P.enchantingTable);
+    // glass sides
+    world.set(cx, baseY + 1, cz - 1, P.purpleGlass);
+    world.set(cx, baseY + 1, cz + 1, P.grayGlass);
+  } else {
+    world.set(cx, baseY + 1, cz - 1, P.craftingTable);
+    world.set(cx, baseY + 1, cz, P.portal);
+    world.set(cx, baseY + 1, cz + 1, P.enchantingTable);
+    world.set(cx - 1, baseY + 1, cz, P.purpleGlass);
+    world.set(cx + 1, baseY + 1, cz, P.grayGlass);
+  }
+  for (const [ox, oz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]] as const) {
+    world.set(cx + ox, baseY + 1, cz + oz, style.accent);
+  }
+  world.set(cx, baseY + 2, cz, style.light);
+}
+
+/** Thin horizontal portal ribbon on the ground (glowing seam). */
+export function portalRibbon(
+  world: World,
+  x1: number,
+  z1: number,
+  x2: number,
+  z2: number,
+  y: number,
+): void {
+  const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, z2 - z1)));
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    const px = Math.round(x1 + (x2 - x1) * t);
+    const pz = Math.round(z1 + (z2 - z1) * t);
+    world.set(px, y, pz, P.portal);
+    world.protect(px, pz);
+  }
+}
+
+/** Void window: deepslate/blackstone frame with tinted glass and a portal core. */
+export function voidWindow(
+  world: World,
+  cx: number,
+  cz: number,
+  baseY: number,
+  height = 3,
+  alongX = true,
+  style: BuildStyle = DEEPSLATE_STYLE,
+): void {
+  const half = 1;
+  for (let dy = 0; dy <= height; dy++) {
+    for (let i = -half; i <= half; i++) {
+      const px = alongX ? cx + i : cx;
+      const pz = alongX ? cz : cz + i;
+      const border = i === -half || i === half || dy === 0 || dy === height;
+      if (border) {
+        world.set(px, baseY + dy, pz, style.wall);
+      } else {
+        // portal core with glass in front/back so it glows through
+        world.set(px, baseY + dy, pz, P.portal);
+      }
+      world.protect(px, pz);
+    }
+  }
+  // glass panes on the faces
+  if (alongX) {
+    world.set(cx, baseY + 1, cz - 1, P.purpleGlass);
+    world.set(cx, baseY + 1, cz + 1, P.grayGlass);
+    if (height >= 2) {
+      world.set(cx, baseY + 2, cz - 1, P.purpleGlass);
+      world.set(cx, baseY + 2, cz + 1, P.grayGlass);
+    }
+  } else {
+    world.set(cx - 1, baseY + 1, cz, P.purpleGlass);
+    world.set(cx + 1, baseY + 1, cz, P.grayGlass);
+    if (height >= 2) {
+      world.set(cx - 1, baseY + 2, cz, P.purpleGlass);
+      world.set(cx + 1, baseY + 2, cz, P.grayGlass);
+    }
+  }
+}
+
+/** Glass-veined deepslate pillar with a portal core running up the centre. */
+export function portalPillar(
+  world: World,
+  cx: number,
+  cz: number,
+  baseY: number,
+  height = 6,
+  style: BuildStyle = DEEPSLATE_STYLE,
+): void {
+  for (let dy = 0; dy < height; dy++) {
+    // outer ring
+    for (const [ox, oz] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+      world.set(cx + ox, baseY + dy, cz + oz, style.wall);
+    }
+    // centre portal
+    world.set(cx, baseY + dy, cz, P.portal);
+    world.protect(cx, cz);
+  }
+  // cap
+  world.set(cx, baseY + height, cz, style.trim);
+  world.set(cx, baseY + height + 1, cz, style.light);
 }
 
 export { endGatewayMarker, endPortalPlatform, glassEyeSpire, eyeOculus, hybridPortal } from "./structures_end.ts";
