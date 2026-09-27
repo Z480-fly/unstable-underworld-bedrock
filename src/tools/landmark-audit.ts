@@ -42,7 +42,7 @@ const SIGNATURES: Record<string, string> = {
   tomb: "minecraft:sculk_catalyst",
   dungeonChain: "minecraft:gilded_blackstone",
   citadel: "minecraft:bookshelf",
-  portalLobby: "minecraft:portal",
+  portalLobby: "minecraft:polished_andesite",
   glassworks: "minecraft:green_stained_glass",
   cathedral: "minecraft:blue_stained_glass",
   splice: "minecraft:enchanting_table",
@@ -51,6 +51,7 @@ const SIGNATURES: Record<string, string> = {
   glassGrove: "minecraft:purple_stained_glass",
   ancientCity: "minecraft:chiseled_deepslate",
   wardenArena: "minecraft:sculk_shrieker",
+  veilCastle: "minecraft:smooth_quartz",
 };
 
 interface Row {

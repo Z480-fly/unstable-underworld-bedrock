@@ -130,6 +130,8 @@ function glazePlaza(
   pitCx: number,
   pitCz: number,
   seed: number,
+  /** Radius of the green ring round the pit's lip; 0 draws no ring. */
+  ringRadius = 23,
 ): void {
   for (let z = region.z1; z <= region.z2; z++) {
     for (let x = region.x1; x <= region.x2; x++) {
@@ -142,13 +144,60 @@ function glazePlaza(
     }
   }
   // a green ring on the paving, one block out from the pit's lip
+  if (ringRadius <= 0) return;
   for (let i = 0; i < 220; i++) {
     const a = (i / 220) * Math.PI * 2;
-    const x = Math.round(pitCx + Math.cos(a) * 23);
-    const z = Math.round(pitCz + Math.sin(a) * 23);
+    const x = Math.round(pitCx + Math.cos(a) * ringRadius);
+    const z = Math.round(pitCz + Math.sin(a) * ringRadius);
     if (!world.inRealm(x, z)) continue;
     if (hash2(x, z, seed) < 0.3) continue; // gaps, so the ring is not a solid line
     world.set(x, level, z, prismAt(PIT_GLAZING, x, level, z, seed + 3));
+  }
+}
+
+/**
+ * A glazed ring walk: the band you actually walk on, looking in over the lip.
+ *
+ * A plain stone ring around a black hole reads as a circle drawn on a slab.
+ * Mullioned like the plate rim - a dark pier every fourth block, glazing
+ * between - and it reads as a balustrade of lit glass, which is what makes the
+ * drop behind it legible instead of just dark.
+ */
+function glazeRingWalk(
+  world: World,
+  cx: number,
+  cz: number,
+  outer: number,
+  inner: number,
+  level: number,
+  glazing: BlockState[],
+  seed: number,
+): void {
+  for (let radius = inner; radius <= outer; radius++) {
+    const steps = Math.max(24, Math.round(radius * 8));
+    for (let i = 0; i < steps; i++) {
+      const a = (i / steps) * Math.PI * 2;
+      const x = Math.round(cx + Math.cos(a) * radius);
+      const z = Math.round(cz + Math.sin(a) * radius);
+      if (!world.inRealm(x, z)) continue;
+      // The kerb on the inside edge, so the lip of the pit is a line you can
+      // see rather than an edge you can fall over. It has to sit *outside* the
+      // bowl: `wardenPit` clears everything within its own radius up to the
+      // rim, so a kerb drawn at the lip before the pit is sunk is erased by it.
+      if (radius === inner) {
+        world.set(x, level, z, P.chiseledDeepslate);
+        world.set(x, level + 1, z, P.sculkCatalyst);
+        continue;
+      }
+      // ...and the green line on the outside edge, so the walk has a far side.
+      if (radius === outer) {
+        world.set(x, level, z, prismAt(PIT_GLAZING, x, level, z, seed + 5));
+        continue;
+      }
+      const mullion = i % 4 === 0;
+      world.set(x, level, z, mullion ? P.chiseledDeepslate : prismAt(glazing, x, level, z, seed));
+      if (i % 8 === 0) world.set(x, level + 1, z, P.seaLantern);
+    }
   }
 }
 
@@ -545,44 +594,75 @@ export function buildAncientCity(world: World): void {
 }
 
 /**
- * The landing shelf: a lit viewing platform on the rim of the pit, so the
- * player has somewhere to stand and look down into it before committing.
+ * The Warden's arena.
+ *
+ * The same treatment as the Sunken City, and for the same reason: 48x46 of
+ * polished deepslate is a large grey slab, and this is the one place in the
+ * realm where a player is *supposed* to feel how big and how dark the thing in
+ * front of them is. So the plate's outer face is glazed, the walk around the lip
+ * is glazed, the buttresses are glazed, and the stair down is glazed.
+ *
+ * What did not change is the Warden. `wardenPit` is called with the same
+ * arguments it always was and the bowl, the sculk, the shrieker, the sensors
+ * and the catalyst rim are exactly as dark as they were. The glazing is on the
+ * *rim*; the dark is in the hole. That contrast is the whole point - a fully
+ * glazed bowl would be a pretty pit with nothing in it, and a fully bare plate
+ * would be a car park with a hole in it.
  */
 export function buildWardenArena(world: World): void {
   const lm = LANDMARKS.wardenArena;
   const cx = lm.center.x;
   const cz = lm.center.z;
   const level = 46;
+  const region = rect(cx - 25, cz - 25, cx + 25, cz + 25);
 
-  plate(world, rect(cx - 24, cz - 20, cx + 24, cz + 20), level, P.polishedDeepslate, P.deepslate, 10);
+  plate(world, region, level, P.polishedDeepslate, P.deepslate, 10);
+  // ...and the two passes that stop it reading as a grey slab, the same two the
+  // Sunken City gets. The rim is the 46-block wall of rock you approach from the
+  // void ring; the inlay is the ground you cross to get to the lip.
+  glazePlateRim(world, region, level, 0x5c31);
+  // No green ring here: the ring walk below draws its own, and at a radius that
+  // is actually on the plate.
+  glazePlaza(world, region, level, cx, cz, 0x5c33, 0);
 
-  // a ring walk looking in over the pit
-  world.ring(cx, cz, 22, level, P.deepslateTiles);
-  world.ring(cx, cz, 19, level, P.cobbledDeepslate);
+  // the pit itself - this is the arena. It has to be sunk here, inside this
+  // footprint, or the ring walk is just a circle on a plate with nothing to
+  // look down into. It runs *before* the walk, because it clears every column
+  // inside its own radius up to the rim: a walk drawn first and then sunk is a
+  // walk with its inner two courses deleted.
+  wardenPit(world, cx, cz, level - 2, 91);
 
-  // buttresses
+  // the ring walk looking in over the lip, from radius 22 (just outside the
+  // bowl) out to 25 (the plate edge).
+  glazeRingWalk(world, cx, cz, 25, 22, level, CITY_GLAZING, 0x5c35);
+
+  // buttresses: a glazed pier on a deepslate base, still capped with a
+  // catalyst so the ring reads as the Warden's territory and not as a balcony.
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
-    const x = Math.round(cx + Math.cos(a) * 21);
-    const z = Math.round(cz + Math.sin(a) * 21);
-    for (let y = level + 1; y <= level + 4; y++) world.set(x, y, z, P.chiseledDeepslate);
-    world.set(x, level + 5, z, P.sculkCatalyst);
+    const x = Math.round(cx + Math.cos(a) * 24);
+    const z = Math.round(cz + Math.sin(a) * 24);
+    world.set(x, level + 1, z, P.chiseledDeepslate);
+    for (let y = level + 2; y <= level + 5; y++) {
+      world.set(x, y, z, y % 2 === 0 ? prismAt(CITY_GLAZING, x, y, z, 0x5c37 + i) : P.chiseledDeepslate);
+    }
+    world.set(x, level + 6, z, P.sculkCatalyst);
   }
 
   // lanterns on the ring, spaced so the walk is readable in the dark
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
-    const x = Math.round(cx + Math.cos(a) * 20);
-    const z = Math.round(cz + Math.sin(a) * 20);
+    const x = Math.round(cx + Math.cos(a) * 23);
+    const z = Math.round(cz + Math.sin(a) * 23);
     seaLanternPost(world, x, z, level, 4);
   }
 
-  // the pit itself - this is the arena. It has to be sunk here, inside this
-  // footprint, or the ring walk is just a circle on a plate with nothing to
-  // look down into.
-  wardenPit(world, cx, cz, level - 2, 91);
-
-  // the descent: a switchback stair down toward the pit floor
+  // the descent: a switchback stair down toward the pit floor. It stays bare
+  // polished deepslate on purpose. Everything *around* the bowl is glazing now,
+  // and the one thing that must not be is the way down - the whole point of
+  // the arena is that the last twenty blocks of it are unlit, and a lit
+  // balustrade leading to the bottom would take that away. A lamp every fourth
+  // step marks the route without lighting the destination.
   for (let i = 0; i < 26; i++) {
     const stepY = level - 1 - i;
     const dir = Math.floor(i / 13) % 2 === 0 ? 1 : -1;
@@ -594,6 +674,7 @@ export function buildWardenArena(world: World): void {
       world.setSurface(x, z + w, stepY);
       world.setLand(x, z + w, true);
     }
+    if (i % 4 === 0) world.set(x, stepY + 2, z, P.sculkSensor);
   }
 
   world.protect(cx, cz, 8);

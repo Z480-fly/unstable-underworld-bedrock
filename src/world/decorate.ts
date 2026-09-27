@@ -504,6 +504,54 @@ export function colorAt(world: World, x: number, z: number): [number, number, nu
     "minecraft:polished_blackstone_brick_slab": [50, 45, 50],
     "minecraft:soul_lantern": [96, 168, 168],
     "minecraft:lantern": [222, 176, 108],
+
+    // --- the Veil Castle -----------------------------------------------------
+    // The Castle is the one pale thing in a grey map, and `colorAt` is what the
+    // world icon and every top-down render are made of. Without these it fell
+    // through to the [60,60,66] default and the castle drew as a grey slab
+    // indistinguishable from the deepslate it stands on - which is the one
+    // thing the top-down view exists to show.
+    "minecraft:smooth_quartz": [236, 234, 226],
+    "minecraft:quartz_block": [224, 221, 212],
+    "minecraft:chiseled_quartz_block": [244, 242, 236],
+    "minecraft:quartz_pillar": [230, 227, 218],
+    "minecraft:smooth_sandstone": [222, 210, 172],
+    "minecraft:sandstone": [214, 202, 164],
+    "minecraft:chiseled_sandstone": [230, 219, 184],
+    "minecraft:cut_sandstone": [218, 207, 170],
+    "minecraft:smooth_stone": [160, 160, 158],
+    "minecraft:white_concrete": [214, 214, 210],
+    "minecraft:light_blue_concrete": [126, 178, 214],
+    "minecraft:blue_concrete": [56, 82, 150],
+    "minecraft:cyan_concrete": [44, 128, 140],
+    "minecraft:green_concrete": [70, 122, 66],
+    "minecraft:purple_concrete": [124, 62, 168],
+    "minecraft:magenta_concrete": [180, 72, 190],
+    "minecraft:light_blue_terracotta": [150, 196, 226],
+    "minecraft:polished_granite": [186, 148, 146],
+    // --- the portal court's green stone ---------------------------------------
+    "minecraft:polished_andesite": [58, 58, 64],
+    "minecraft:polished_tuff": [126, 128, 120],
+    "minecraft:andesite": [132, 132, 132],
+
+    // --- the rest of the glazing, so the beacons actually show ----------------
+    // Only green and grey were in the table. The other fourteen fell through to
+    // the default, so a top-down render of the sky drew every beacon the same
+    // grey - which defeats the entire point of colouring them.
+    "minecraft:light_blue_stained_glass": [156, 200, 232],
+    "minecraft:blue_stained_glass": [58, 78, 168],
+    "minecraft:cyan_stained_glass": [56, 168, 184],
+    "minecraft:purple_stained_glass": [128, 64, 178],
+    "minecraft:magenta_stained_glass": [196, 84, 200],
+    "minecraft:pink_stained_glass": [232, 150, 178],
+    "minecraft:red_stained_glass": [198, 62, 56],
+    "minecraft:orange_stained_glass": [222, 132, 52],
+    "minecraft:yellow_stained_glass": [226, 204, 66],
+    "minecraft:lime_stained_glass": [130, 200, 74],
+    "minecraft:white_stained_glass": [236, 238, 240],
+    "minecraft:light_gray_stained_glass": [166, 170, 174],
+    "minecraft:black_stained_glass": [26, 26, 32],
+    "minecraft:tinted_glass": [58, 58, 70],
   };
   return table[name] ?? [60, 60, 66];
 }

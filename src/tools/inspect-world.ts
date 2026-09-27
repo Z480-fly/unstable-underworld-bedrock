@@ -103,7 +103,7 @@ const LANDMARK_SIGNATURES: Record<string, string> = {
   tomb: "minecraft:sculk_catalyst",
   dungeonChain: "minecraft:gilded_blackstone",
   citadel: "minecraft:bookshelf",
-  portalLobby: "minecraft:portal",
+  portalLobby: "minecraft:polished_andesite",
   glassworks: "minecraft:green_stained_glass",
   portalField: "minecraft:crying_obsidian",
   endRuin: "minecraft:end_portal",
@@ -112,6 +112,7 @@ const LANDMARK_SIGNATURES: Record<string, string> = {
   splice: "minecraft:enchanting_table",
   ancientCity: "minecraft:chiseled_deepslate",
   wardenArena: "minecraft:sculk_shrieker",
+  veilCastle: "minecraft:smooth_quartz",
 };
 
 const LANDMARK_RECTS: Array<[string, { x1: number; z1: number; x2: number; z2: number }, string]> = Object.entries(

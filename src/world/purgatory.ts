@@ -45,6 +45,23 @@
  * - it runs on the source's own coordinates before the offset, and it writes
  *   nothing outside the region the transplant already owns. Nothing else in
  *   the Underworld is in scope.
+ *
+ * The office beacon
+ * -----------------
+ * Purgatory is seven identical storeys of a tower with no exterior at all, so
+ * "put a beacon on the office so I can find it" cannot be answered the way it is
+ * answered everywhere else in the Underworld - there is no sky to hang a mast in
+ * until you are already on the top floor, and the whole point is to find the
+ * *room*. So this one is built inside the transplant, in source coordinates,
+ * and it does two things: a banded glass mast standing in the middle of the
+ * office rotunda from its floor up, and a continuation of it up through the
+ * storeys above and out into the open air on the roof - which is the top of the
+ * island at y282, and the only thing on Purgatory you can see from the
+ * Underworld.
+ *
+ * The screenshot the request came from reads `Position: -623, 270, 23`, which
+ * is source-local (273, 254, 279) - four blocks off the rotunda's centre, which
+ * is (274, 283). The mast goes in the centre.
  */
 
 import { join } from "node:path";
@@ -85,6 +102,7 @@ export const PURGATORY_LIGHTING = {
 
 /** Block names that count as "this room is already lit". */
 const SOURCE_LIGHTS = [
+
   "glowstone",
   "sea_lantern",
   "shroomlight",
@@ -106,6 +124,27 @@ const SOURCE_LIGHTS = [
 ];
 
 const isSourceLight = (name: string): boolean => SOURCE_LIGHTS.some((l) => name.includes(l));
+
+/**
+ * The office beacon, in *source* coordinates.
+ *
+ * `baseY` is the office floor (the polished tuff the rotunda is laid on) and
+ * `topY` is the roof of the tower, which is the highest block anywhere in the
+ * source. A mast that stops at the office ceiling would be invisible from
+ * outside; one that goes to 282 is the only thing on Purgatory with a
+ * silhouette.
+ */
+export const PURGATORY_OFFICE_BEACON = {
+  x: 274,
+  z: 283,
+  baseY: 251,
+  topY: 282,
+  /** Purgatory's own colour, so it reads as part of the build and not as an import. */
+  main: P.greenGlass,
+  accent: P.limeGlass,
+  /** How many courses of glass between two dark bands. */
+  band: 7,
+} as const;
 
 /** One column's occupancy, as a bit per Y (0..255). */
 export interface ColumnMask {
@@ -137,6 +176,30 @@ const columnKey = (x: number, z: number): number => (x + 1024) * 4096 + (z + 102
  */
 const blockKey = (x: number, y: number, z: number): number =>
   (x + 1024) * 1048576 + (z + 1024) * 256 + y;
+
+/**
+ * The office beacon's blocks, keyed exactly like the lamp plan.
+ *
+ * Split out from the transplant loop so it can be asserted directly, and
+ * written as a pure function of the beacon's constants: a mast that is
+ * accidentally the wrong colour, or that stops four blocks short of the roof,
+ * still produces a column of *something* and would pass a "is there glass here"
+ * check.
+ */
+export function planOfficeBeacon(into: LightingPlan): LightingPlan {
+  const { x, z, baseY, topY, main, accent, band } = PURGATORY_OFFICE_BEACON;
+  for (let y = baseY; y <= topY; y++) {
+    const course = y - baseY;
+    let block: BlockState;
+    if (course === topY - baseY) block = P.glowstone;
+    else if (course === topY - baseY - 1) block = P.seaLantern;
+    else if (course % band === 0) block = P.blackGlass;
+    else if (course % band === 3) block = accent;
+    else block = main;
+    into.set(blockKey(x, y, z), block);
+  }
+  return into;
+}
 
 /**
  * Work out where a single column needs a lamp.
@@ -221,6 +284,8 @@ export interface PurgatoryRegion {
   subChunkCount: number;
   /** Lamps hung in unlit enclosed rooms, for the build log. */
   lampsPlaced: number;
+  /** Courses of glass in the office beacon, for the build log. */
+  beaconCourses: number;
 }
 
 /** Translate one block's palette entry, dropping any gravity block. */
@@ -296,10 +361,13 @@ export function loadPurgatoryRegion(projectRoot = process.cwd()): PurgatoryRegio
   const db = readLevelDbDirectory(join(projectRoot, PURGATORY.sourceDir));
 
   const lighting = planPurgatoryLighting(db);
+  const beacons = planOfficeBeacon(new Map());
+  const beaconCourses = beacons.size;
 
   const byChunk = new Map<string, PurgatoryChunk>();
   let subChunkCount = 0;
   let lampsPlaced = 0;
+  let beaconsPlaced = 0;
   let minCx = Infinity, maxCx = -Infinity, minCz = Infinity, maxCz = -Infinity;
 
   const dxChunks = PURGATORY.offsetX / CHUNK; // -56
@@ -336,17 +404,22 @@ export function loadPurgatoryRegion(projectRoot = process.cwd()): PurgatoryRegio
         const x = localCx * CHUNK + lx;
         const z = localCz * CHUNK + lz;
         for (let y = 0; y < CHUNK; y++) {
-          const lamp = lighting.get(blockKey(x, baseY + y, z));
-          if (!lamp) continue;
           const index = (lx << 8) | (lz << 4) | y;
-          if (palette[ids[index]!]!.name !== "minecraft:air") continue;
+          // The beacon is the one thing that is allowed to *replace* a block:
+          // it has to punch up through the storey floors above the office, and
+          // a rule that only filled air would stop it dead at the ceiling.
+          const beacon = beacons.get(blockKey(x, baseY + y, z));
+          const lamp = beacon ?? lighting.get(blockKey(x, baseY + y, z));
+          if (!lamp) continue;
+          if (!beacon && palette[ids[index]!]!.name !== "minecraft:air") continue;
           let paletteIndex = palette.findIndex((b) => b.name === lamp.name);
           if (paletteIndex < 0) {
             palette.push(lamp);
             paletteIndex = palette.length - 1;
           }
           ids[index] = paletteIndex;
-          lampsPlaced++;
+          if (beacon) beaconsPlaced++;
+          else lampsPlaced++;
         }
       }
     }
@@ -376,5 +449,10 @@ export function loadPurgatoryRegion(projectRoot = process.cwd()): PurgatoryRegio
   }
 
   const chunks = [...byChunk.values()].sort((a, b) => a.cz - b.cz || a.cx - b.cx);
-  return { chunks, minCx, maxCx, minCz, maxCz, subChunkCount, lampsPlaced };
+  if (beaconsPlaced !== beaconCourses) {
+    throw new Error(
+      `purgatory office beacon: planned ${beaconCourses} courses but only ${beaconsPlaced} landed in a subchunk`,
+    );
+  }
+  return { chunks, minCx, maxCx, minCz, maxCz, subChunkCount, lampsPlaced, beaconCourses };
 }

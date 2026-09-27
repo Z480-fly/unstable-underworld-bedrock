@@ -989,3 +989,150 @@ test so they cannot drift apart.
 
 Full gate: typecheck clean, **76/76 tests**, palette OK, `world OK (40 checks)`,
 both `.mcpack` archives built and verified.
+
+---
+
+## Colour beacons, a pale castle, a green portal court, and a glazed arena
+
+Four requests in one turn, from ten screenshots.
+
+### 1. A colour beacon over every landmark
+
+> "every land mark, make a colour beacon give each one it's own colour, so i can
+> see it in the sky. I think that be prettt cool"
+
+New `src/world/beacons.ts`. Every landmark gets a banded stained-glass mast that
+rises out of the top of its own building and punches up through the canopy to a
+lantern crown at y123. Three decisions, none of them obvious:
+
+- **It runs *after* the canopy.** `buildSkyCanopy` is documented as the last word
+  in the sky over the landmarks, and that is still true — but a mast drawn
+  before it would have a sheet of glass land on top of it, which is precisely
+  the failure the request is about. So `buildAllAreas` calls the canopy and then
+  the beacons, and a beacon is allowed to cut a hole through a sheet.
+- **Sixteen glasses, twenty-three landmarks.** "Each one its own colour" cannot
+  be satisfied by hue alone, so each beacon is a `main` with an `accent` band
+  and every *pair* is unique. `BEACON_COLOURS` is hand-assigned (for the same
+  reason the canopy sheets are) and a test asserts no two landmarks share a pair.
+- **The crown clears the canopy.** `CANOPY_BAND.ceiling` is 116; the crown sits
+  at 121-123. A crown at or below the sheets is a mast you can only see through
+  glass, which is the state the world was in before this existed.
+
+**The bug worth writing down.** The mast is anchored to the landmark's own
+structure, found by scanning *down* the centre column. The first version scanned
+from y92 — the canopy's floor — and every single mast in the world came out
+anchored at y91, because `glassSky` hangs green fronds two to eight blocks below
+every sheet and glass therefore reaches down to y84. A frond was found in all
+twenty-three landmark columns at once. It is invisible in a build log, it still
+leaves glass at the column so a "is there glass here" check passes, and the fix
+is a scan ceiling of 83 with a test that asserts `baseY < CANOPY_BAND.floor`.
+
+### 2. The Warden arena: keep the Warden, glaze the deepslate
+
+> "u can keep the warden stuff but change the deep slate with the glass we been
+> using"
+
+The arena now gets the same three passes the Sunken City got: `glazePlateRim` on
+the outward face, `glazePlaza` on the top, and a new `glazeRingWalk` on the walk
+around the lip — a dark pier every fourth block, glazing between, a chiseled
+kerb and catalyst line on the inside edge, green glass on the outside. The
+buttresses are glazed piers still capped with a catalyst.
+
+`wardenPit` is untouched. `wardenPit(world, cx, cz, level - 2, 91)` is the same
+call it always was, and a test asserts **zero** glass inside the bowl while
+sculk, the catalyst rim and the disarmed shrieker are all still there. Bright
+glass only reads as bright next to something that stayed dark.
+
+Two things had to move for the ring walk to work at all:
+
+- **Order.** `wardenPit` clears every column inside its radius up to the rim, so
+  a walk drawn first is a walk with its inner two courses deleted. The pit is now
+  sunk *before* the walk.
+- **Size.** The walk is radius 22 and the old footprint was 48 × 40, so its north
+  and south arcs were written out over the void with nothing under them — the
+  arena had a rail floating in mid-air on two sides. The plate and the footprint
+  are now 50 × 50 (`-325, 275 → -275, 325`) and the walk runs 22 → 25. A test
+  asserts every course of the walk is on land at plaza level.
+
+The switchback stair down into the bowl deliberately stays bare polished
+deepslate. Everything *around* the bowl is glazing now and the one thing that
+must not be is the way down: a lit balustrade leading to the bottom would take
+away the last twenty unlit blocks, which are the entire point of the arena.
+
+### 3. The Veil Castle
+
+> "I have a photo of the castle I want, I sent a picture of where I want it"
+
+The placement screenshot reads `Position: -179, 46, 133` and shows a broad paved
+plaza, so the plaza *is* the forecourt and the castle runs east from it: causeway
+`x -211..-199`, forecourt `-199..-179`, gatehouse at `-181`, palace `-171..-131`.
+New `src/world/veil_castle.ts`, and the first genuinely **pale** building in the
+map — quartz and sandstone against a canon palette that is grey and black
+everywhere else. 8 200-odd smooth quartz, 4 200 blue concrete, roundels in green
+and lime glass in sandstone rings, and a purple carpet that runs unbroken for 55
+blocks from the causeway through the gate and down the hall to the dais.
+
+The drum and dome are taken up to y104 on purpose: the canopy hangs at y92-116,
+and a castle whose spires stop below the glass reads as a model of a castle.
+
+Two composition bugs that only a test would have caught:
+
+- The forecourt medallion was drawn **over** the carpet, cutting a 17-block hole
+  in the middle of the approach. It is now an annulus drawn *before* the carpet,
+  so the purple runs through the middle of the ring — which is what the reference
+  does at every medallion on that bridge.
+- `lobbyRoad` used to run along z = 133, straight down the causeway axis, so the
+  landmark-path pass repaved the castle's own carpet in green glass. The road now
+  stops short, south-west of both gates.
+
+Twenty-three new palette entries (quartz, sandstone, the concretes) plus
+`polished_andesite` and `polished_tuff` for the portal court. **Bedrock has no
+`black_andesite` block** — the palette validator rejected the name outright, which
+is exactly what it is for; the frame the screenshot calls "black andesite" is
+`polished_andesite`.
+
+### 4. The portal section, where the screenshot says it is
+
+> "dont thought the nether portal section neee Theres i send another screen shot
+> for reference"
+
+The second screenshot reads `Position: -219, 45, 125` and shows a green
+deepslate/tuff wall, a giant dark-oak door, a black andesite frame, gold ore in
+the stone and the purple edge of an obsidian portal. So the lobby is **re-sited**
+there — it used to be a blackstone plaza at `-158, 140`, which is now the
+castle's forecourt — and re-faced to match: a walled green-stone court with the
+twenty portal frames set *into* its long walls rather than standing loose on a
+floor, a six-wide ten-tall dark-oak door with iron banding in a polished andesite
+reveal, and a green-glass fanlight over the lintel.
+
+The frames are spaced five apart down each wall. The first attempt put ten frames
+at the same z — ten frames in the same hole — and the count of twenty was
+satisfied by four. `portal` blocks went from 48 to 237.
+
+### 5. The Purgatory office beacon
+
+> "I sent a picture of the purgatory office, try to find that and put a beacon
+> there too si I can find it easier"
+
+The screenshot reads `Position: -623, 270, 23`, which is source-local
+`(273, 254, 279)` after the transplant offsets. Probing the source DB found a
+rotunda there: a 28-block polished-tuff floor at local y250, seating and desks
+around the wall, a slab ceiling at y265, and a 40-wide black-glass dome over the
+lot. The mast goes at the centre of the floor disc, `(274, 283)`.
+
+It cannot be a `beacons.ts` mast. Purgatory is a 250-block tower and `World.set`
+refuses anything past the realm's own y127, so the beacon is planned inside the
+transplant in **source** coordinates — `planOfficeBeacon`, keyed exactly like the
+lamp plan. It is the only plan allowed to *replace* a block rather than only fill
+air, because it has to punch up through the storey floors above the office; a
+lamp is always inside the same subchunk as its room, and so is a course of the
+mast. It runs from the office floor at y251 to y282, which is the roof of the
+island and the highest block anywhere in the source — the only thing on Purgatory
+visible from the Underworld. Green and lime, the build's own palette; 32 courses.
+
+`loadPurgatoryRegion` throws if the planned course count and the applied count
+disagree, because a beacon that silently stops at a subchunk boundary is exactly
+the kind of failure that reads as "the build passed".
+
+Full gate: typecheck clean, **99/99 tests**, palette OK, `world OK (40 checks)`,
+23/23 landmarks present and reachable, both `.mcpack` archives built and verified.

@@ -1,6 +1,6 @@
 ## Soul Keepers
-pack.name=Soul Keepers
-pack.description=The Soul Keepers of the Underworld.
+pack.name=Soul Keepers Resources
+pack.description=The Soul Keepers of the Underworld - textures, items and names.
 action.soulkeepers.trade=Trade with the Soul Keeper
 item.soulkeepers:keeper_blade.name=Soul Keeper Blade
 item.soulkeepers:keeper_blade.name_destroyed=Soul Keeper Blade

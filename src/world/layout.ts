@@ -153,9 +153,26 @@ export const LANDMARKS = {
   portalLobby: {
     id: "portalLobby",
     name: "The Nether Portal Lobby",
-    center: { x: -158, z: 140 },
-    footprint: { kind: "rect", x1: -182, z1: 118, x2: -134, z2: 162 },
+    // Re-sited. The user pointed at the coordinates -219, 45, 125 - and sent a
+    // screenshot of a green deepslate wall with a dark-oak door and an obsidian
+    // portal in it, so the lobby is built *there* instead of on the old plaza
+    // (which the Veil Castle now stands on). The centre is nudged to z=133 so
+    // the lobby's door, the castle's causeway and the castle's gate are all on
+    // one axis; the point the user stood on is still inside the court.
+    center: { x: -221, z: 133 },
+    footprint: { kind: "rect", x1: -231, z1: 107, x2: -211, z2: 159 },
     source: "Twenty portals connecting the Underworld to the Far Lands in every direction.",
+  },
+  veilCastle: {
+    id: "veilCastle",
+    name: "The Veil Castle",
+    // The placement screenshot reads `Position: -179, 46, 133` - the paved
+    // plaza is the castle's forecourt, and the gate faces west across the
+    // causeway to the portal lobby.
+    center: { x: -179, z: 133 },
+    footprint: { kind: "rect", x1: -195, z1: 92, x2: -127, z2: 174 },
+    source:
+      "The reference's great pale castle: quartz and sandstone, blue and teal roofs, a hall of green stained-glass roundels over a purple-carpeted causeway. The Veil Company's seat, and the only bright thing in the west.",
   },
   glassworks: {
     id: "glassworks",
@@ -209,7 +226,11 @@ export const LANDMARKS = {
     id: "wardenArena",
     name: "The Warden's Deep Dark",
     center: { x: -300, z: 300 },
-    footprint: { kind: "rect", x1: -324, z1: 280, x2: -276, z2: 320 },
+    // Widened to 50x50. The bowl is radius 21 and the ring walk around it runs
+    // from 22 out to the plate edge, so on the old 48x40 footprint the walk's
+    // north and south arcs were written out over the void with nothing under
+    // them - the arena had a rail floating in mid-air on two sides.
+    footprint: { kind: "rect", x1: -325, z1: 275, x2: -275, z2: 325 },
     source:
       "A lit ring walk around a sculk bowl, with a switchback stair down to a floor of spreading sculk and a shrieker at the centre - an arena for a fight that has not happened yet.",
   },
@@ -292,6 +313,10 @@ export const TERRAIN_REGIONS: TerrainRegion[] = [
   // The cathedral stands on its own flattened shelf in the dark north-west.
   { id: "cathedralShelf", shape: { kind: "rect", x1: -212, z1: -252, x2: -68, z2: -108 }, heightDelta: 3, relief: 0.3 },
   { id: "spliceShelf", shape: { kind: "rect", x1: 144, z1: -68, x2: 248, z2: 36 }, heightDelta: 2, relief: 0.3 },
+  // The Veil Castle and the portal lobby stand on a flattened shelf in the west
+  // reach. A palace that needs level ground for its plaza and a lobby walled in
+  // green deepslate cannot tolerate a 6-block roll across the site.
+  { id: "veilShelf", shape: { kind: "rect", x1: -231, z1: 88, x2: -124, z2: 178 }, heightDelta: 1, relief: 0.3 },
 ];
 
 export interface RoadPath {
@@ -398,10 +423,24 @@ export const ROADS: RoadPath[] = [
     width: 1,
     style: "path",
   },
+  // The old lobby road ran south out of the Citadel to the lobby's old plaza,
+  // which is now the Veil Castle's forecourt - paving it would have driven a
+  // road through the castle. It now stops short, south-west of both, because
+  // the landmark-path pass hangs each gate off the nearest road point and a
+  // road *on* the causeway axis would have the path repave the castle's own
+  // purple carpet in green glass.
   {
     id: "lobbyRoad",
+    from: { x: -221, z: 156 },
+    to: { x: -204, z: 150 },
+    via: [],
+    width: 1,
+    style: "path",
+  },
+  {
+    id: "castleRoad",
     from: { x: -158, z: 74 },
-    to: { x: -158, z: 116 },
+    to: { x: -158, z: 90 },
     via: [],
     width: 1,
     style: "path",

@@ -28,6 +28,8 @@ import { buildCathedral } from "./glass_cathedral.ts";
 import { buildSplice } from "./splice.ts";
 import { buildAncientCity, buildWardenArena } from "./ancient_city.ts";
 import { buildSkyCanopy } from "./sky_canopy.ts";
+import { buildVeilCastle } from "./veil_castle.ts";
+import { buildBeacons } from "./beacons.ts";
 
 export function buildAllAreas(world: World): void {
   buildBreach(world);
@@ -52,10 +54,14 @@ export function buildAllAreas(world: World): void {
   buildSplice(world);
   buildWardenArena(world);
   buildAncientCity(world);
-  // Last. The canopy is the last word in the sky, so nothing that follows it
-  // can put a roof through a sheet. It hangs at y100-124, above every
-  // landmark, so it cannot fight the ground either.
+  buildVeilCastle(world);
+  // The canopy is the last word in the sky over the *landmarks*, so nothing
+  // that runs before it can put a roof through a sheet. It hangs at y92-116,
+  // above every landmark, so it cannot fight the ground either.
   buildSkyCanopy(world);
+  // ...and then the beacons cut straight through it. They have to: a mast whose
+  // top is behind a sheet of sky glass is not a beacon. See beacons.ts.
+  buildBeacons(world);
 }
 
 export {
@@ -84,3 +90,5 @@ export { buildCathedral } from "./glass_cathedral.ts";
 export { buildSplice } from "./splice.ts";
 export { buildAncientCity, buildWardenArena } from "./ancient_city.ts";
 export { buildSkyCanopy, canopyCoverage, CANOPY_BAND } from "./sky_canopy.ts";
+export { buildVeilCastle, VEIL_COURT } from "./veil_castle.ts";
+export { buildBeacons, beaconMast, BEACON_COLOURS, BEACON_CROWN_Y } from "./beacons.ts";

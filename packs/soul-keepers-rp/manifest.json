@@ -1,8 +1,8 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Soul Keepers",
-    "description": "Soul Keeper textures and items.",
+    "name": "Soul Keepers Resources",
+    "description": "Soul Keeper textures, items and names. Enable with the Soul Keepers behaviour pack.",
     "uuid": "6b2f4a10-3c7d-4e51-9a8b-1f0d5c7e2a50",
     "version": [1, 0, 0],
     "min_engine_version": [1, 21, 80]

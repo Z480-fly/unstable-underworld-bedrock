@@ -23,11 +23,27 @@ import {
   voidWindow,
 } from "./structures.ts";
 import { glassEyeSpire, eyeOculus, hybridPortal } from "./structures_end.ts";
-import { eyeWindow, glassMosaic, prismPillar, seaLanternPost, PRISM, VIVID_PRISM } from "./structures_glass.ts";
+import { eyeWindow, glassMosaic, prismPillar, seaLanternPost, PRISM, SOUL_GREEN, VIVID_PRISM } from "./structures_glass.ts";
 import type { World } from "./world.ts";
 
 function rect(x1: number, z1: number, x2: number, z2: number): RectRegion {
   return { kind: "rect", x1, z1, x2, z2 };
+}
+
+/**
+ * The polished-andesite collar around one gate set into a wall.
+ *
+ * A frame written straight onto a wall face reads as a block stuck to a wall;
+ * a frame with a dark stone reveal around it reads as an opening. The collar is
+ * one block wider than the frame on every side and one course above and below,
+ * which is the difference between a doorway and a decoration.
+ */
+function surroundGate(world: World, x: number, y: number, z: number): void {
+  for (let dy = -1; dy <= 5; dy++) {
+    for (let dz = -3; dz <= 3; dz++) {
+      if (Math.abs(dz) === 3 || dy === -1 || dy === 5) world.set(x, y + dy, z + dz, P.polishedAndesite);
+    }
+  }
 }
 
 export function buildVillage(world: World): void {
@@ -263,21 +279,179 @@ export function buildPortalField(world: World): void {
   }
 }
 
+/**
+ * The Nether Portal Lobby.
+ *
+ * Re-sited and re-faced. It used to be a blackstone plaza twenty frames wide
+ * on the open plain; the user sent a screenshot of `Position: -219, 45, 125`
+ * showing a wall of *green* deepslate and tuff with a giant dark-oak door
+ * standing in it, a black andesite frame around it, gold ore glinting in the
+ * stone and the purple edge of an obsidian portal just off to the right - and
+ * said the nether portal section needed to be there. So that is what this is
+ * now: a walled green-stone court at those coordinates, entered through a
+ * dark-oak door, with the twenty portals set into its walls rather than
+ * standing loose on a floor.
+ *
+ * The castle's causeway arrives from the east at z = 133, so the court's long
+ * axis runs east-west and the door is in the east wall, on the axis: you walk
+ * the causeway, through the door, and the portals are all around you.
+ */
 export function buildPortalLobby(world: World): void {
   const { x: cx, z: cz } = LANDMARKS.portalLobby.center;
-  const style = BLACKSTONE_STYLE;
   const level = areaGround(world, LANDMARKS.portalLobby.footprint);
-  pad(world, rect(cx - 22, cz - 20, cx + 22, cz + 20), level, P.polishedBlackstone, P.blackstone);
+  const halfW = 10;
+  const halfD = 26;
+  // The green stone. Tuff for the field, deepslate for the coursing, and a
+  // green-glass band at eye height so the canon colour is on the structure
+  // rather than only in the lamps.
+  pad(world, rect(cx - halfW, cz - halfD, cx + halfW, cz + halfD), level, P.tuff, P.deepslate);
+
+  const top = level + 16;
+  // --- the court shell ---------------------------------------------------------
+  for (let x = cx - halfW; x <= cx + halfW; x++) {
+    for (let y = level + 1; y <= top; y++) {
+      for (const z of [cz - halfD, cz + halfD]) {
+        const band = y >= level + 5 && y <= level + 7;
+        const course = y % 4 === 0;
+        const ore = (x * 7 + y * 13 + z) % 29 === 0;
+        world.set(
+          x,
+          y,
+          z,
+          y === top
+            ? P.chiseledDeepslate
+            : ore
+              ? P.goldOre
+              : band
+                ? (course ? P.polishedAndesite : P.greenGlass)
+                : course
+                  ? P.polishedAndesite
+                  : P.deepslate,
+        );
+      }
+    }
+  }
+  for (let z = cz - halfD + 1; z <= cz + halfD - 1; z++) {
+    for (let y = level + 1; y <= top; y++) {
+      for (const x of [cx - halfW, cx + halfW]) {
+        const band = y >= level + 5 && y <= level + 7;
+        const course = y % 4 === 0;
+        const ore = (z * 11 + y * 5 + x) % 31 === 0;
+        world.set(
+          x,
+          y,
+          z,
+          y === top
+            ? P.chiseledDeepslate
+            : ore
+              ? P.goldOre
+              : band
+                ? (course ? P.polishedAndesite : P.greenGlass)
+                : course
+                  ? P.polishedAndesite
+                  : P.deepslate,
+        );
+      }
+    }
+  }
+  // Floor: tuf laid in courses with a green-glass spine down the axis, so the
+  // twenty portals light the floor they all look out onto.
+  for (let z = cz - halfD + 1; z <= cz + halfD - 1; z++) {
+    for (let x = cx - halfW + 1; x <= cx + halfW - 1; x++) {
+      const onAxis = Math.abs(z - cz) <= 1;
+      world.set(x, level, z, onAxis ? P.greenGlass : (x + z) % 5 === 0 ? P.polishedTuff : P.tuff);
+    }
+  }
+
+  // --- the great dark-oak door, in the east wall on the axis -------------------
+  // Two blocks of black andesite frame it, and the lintel carries the Veil
+  // Company's mark in green glass.
+  const doorX = cx + halfW;
+  for (let y = level + 1; y <= level + 10; y++) {
+    for (let z = cz - 3; z <= cz + 3; z++) world.set(doorX, y, z, AIR);
+  }
+  for (let z = cz - 4; z <= cz + 4; z++) {
+    for (let y = level + 1; y <= level + 11; y++) {
+      const frame = Math.abs(z - cz) === 4 || y === level + 11;
+      if (frame) world.set(doorX, y, z, P.polishedAndesite);
+    }
+  }
+  // The door itself: a slab of dark oak, six wide and ten tall, standing in
+  // the opening rather than filling it - the reference's door is ajar, and it
+  // is enormous, which is the whole reason it reads as a *door* and not as a
+  // hole with a plank in it.
+  for (let y = level + 1; y <= level + 10; y++) {
+    for (let z = cz - 3; z <= cz + 2; z++) {
+      const stile = z === cz - 3 || z === cz + 2 || y === level + 1 || y === level + 10;
+      const rail = y === level + 5 || y === level + 6;
+      world.set(doorX, y, z, stile || rail ? P.darkOakLog : P.darkOakPlanks);
+    }
+  }
+  // Iron banding and a ring handle, so the slab has something to catch light.
+  for (const y of [level + 3, level + 8]) {
+    for (let z = cz - 2; z <= cz + 1; z++) world.set(doorX, y, z, P.cobbledDeepslateWall);
+  }
+  for (const dz of [0, 1]) {
+    world.set(doorX, level + 4, cz + dz, P.ironBars);
+  }
+  // A green-glass fanlight over the lintel.
+  glassMosaic(world, doorX, level + 13, cz, 3, 1, false, SOUL_GREEN, P.polishedAndesite, 0x9051);
+  for (const dz of [-4, 4]) {
+    for (let y = level + 1; y <= level + 6; y++) world.set(doorX, y, cz + dz, P.polishedAndesite);
+    world.set(doorX, level + 7, cz + dz, P.seaLantern);
+  }
+
+  // --- the twenty portals, set into the walls ---------------------------------
+  // Ten along each long wall, spaced five apart so each frame has its own
+  // course of green stone around it, alternating lit and sheared. A portal
+  // standing free on a floor reads as a placed block; a portal *in* a wall of
+  // green stone reads as a gate, which is what this place is.
+  //
+  // The spacing is the whole trick. Ten frames at the same z is ten frames in
+  // the same hole, and the count of twenty would be satisfied by four.
   let placed = 0;
-  for (let i = 0; i < 10 && placed < 20; i++) {
-    portalFrame(world, cx - 14 + (i % 5) * 7, level + 1, cz - 12 + Math.floor(i / 5) * 10, true, i % 3 === 0);
-    placed++;
+  for (const wallX of [cx - halfW + 1, cx + halfW - 1]) {
+    for (let i = 0; i < 10; i++) {
+      if (placed >= 16) break;
+      const z = cz - 22 + i * 5;
+      // Leave the doorway clear: the great dark-oak door is on the axis, and a
+      // gate frame three blocks behind it is neither one thing nor the other.
+      if (Math.abs(z - cz) <= 6) continue;
+      portalFrame(world, wallX, level + 1, z, false, i % 3 === 0);
+      surroundGate(world, wallX, level + 1, z);
+      placed++;
+    }
   }
+  // Four more in the north and south walls, so twenty is twenty.
+  for (const wallZ of [cz - halfD + 1, cz + halfD - 1]) {
+    for (const dx of [-6, 6]) {
+      if (placed >= 20) break;
+      portalFrame(world, cx + dx, level + 1, wallZ, true, placed % 3 === 1);
+      surroundGate(world, cx + dx, level + 1, wallZ);
+      placed++;
+    }
+  }
+
+  // --- the light ---------------------------------------------------------------
   for (let i = 0; i < 6; i++) {
-    lampPost(world, cx - 16 + i * 6, cz, level + 1, style.light, 3);
+    const z = cz - 20 + i * 8;
+    lampPost(world, cx, z, level + 1, P.greenGlass, 4);
+  }  for (const dx of [-6, 6]) {
+    for (const dz of [-18, 18]) prismPillar(world, cx + dx, cz + dz, level + 1, 7, SOUL_GREEN, 0x9053 + dx);
   }
-  tower(world, cx, cz + 14, 4, level, 12, style, { round: true, crown: true });
-  greenGlazingLocal(world, cx, cz + 14, 4, level + 6);
+  // The tower that used to stand here is now the gate pier over the door: a
+  // polished andesite crown on the east wall, lit, visible from the causeway.
+  for (let y = top + 1; y <= top + 6; y++) {
+    for (let dz = -2; dz <= 2; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (Math.abs(dx) === 1 && Math.abs(dz) === 2) continue;
+        world.set(doorX + dx, y, cz + dz, P.polishedAndesite);
+      }
+    }
+  }
+  world.set(doorX, top + 7, cz, P.glowstone);
+
+  world.protect(cx, cz, Math.max(halfW, halfD) + 2);
 }
 
 function greenGlazingLocal(world: World, cx: number, cz: number, radius: number, y: number): void {

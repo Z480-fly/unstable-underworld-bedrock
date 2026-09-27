@@ -243,6 +243,43 @@ export const P = {
   enchantingTableTop: bs("minecraft:enchanting_table"),
   furnace: bs("minecraft:furnace", { facing_direction: 2, lit: false }),
   chest: bs("minecraft:chest", { facing_direction: 2 }),
+
+  // --- the Veil Castle -------------------------------------------------------
+  // The reference castle is the one place in the Underworld that is *pale*: a
+  // quartz-and-sandstone palace with blue and teal roofs. None of these existed
+  // until that build, and they live here rather than being spelled out at the
+  // call site so the palette validator covers them like everything else.
+  quartz: bs("minecraft:quartz_block"),
+  smoothQuartz: bs("minecraft:smooth_quartz"),
+  chiseledQuartz: bs("minecraft:chiseled_quartz_block"),
+  quartzPillar: log("minecraft:quartz_pillar"),
+  quartzStairs: stairs("minecraft:quartz_stairs", 0),
+  sandstone: bs("minecraft:sandstone"),
+  smoothSandstone: bs("minecraft:smooth_sandstone"),
+  chiseledSandstone: bs("minecraft:chiseled_sandstone"),
+  cutSandstone: bs("minecraft:cut_sandstone"),
+  sandstoneStairs: stairs("minecraft:sandstone_stairs", 0),
+  smoothStone: bs("minecraft:smooth_stone"),
+  whiteConcrete: bs("minecraft:white_concrete"),
+  lightBlueConcrete: bs("minecraft:light_blue_concrete"),
+  blueConcrete: bs("minecraft:blue_concrete"),
+  purpleConcrete: bs("minecraft:purple_concrete"),
+  magentaConcrete: bs("minecraft:magenta_concrete"),
+  lightBlueTerracotta: bs("minecraft:light_blue_terracotta"),
+  polishedGranite: bs("minecraft:polished_granite"),
+  greenConcrete: bs("minecraft:green_concrete"),
+  cyanConcrete: bs("minecraft:cyan_concrete"),
+
+  // --- the Nether Portal Lobby's green stone ----------------------------------
+  // The screenshot the lobby was re-built from is a wall of *green* deepslate
+  // and tuff, not the blackstone plaza it used to be: the Soul Keepers' green,
+  // in the one material the canon palette was missing.
+  //
+  // The frame the screenshot calls "black andesite" is `polished_andesite` -
+  // Bedrock has no `black_andesite` block, and the palette validator rejects
+  // the name rather than letting it reach a phone as an unknown block.
+  polishedAndesite: bs("minecraft:polished_andesite"),
+  polishedTuff: bs("minecraft:polished_tuff"),
 } as const satisfies Record<string, BlockState>;
 
 export type PaletteKey = keyof typeof P;

@@ -84,7 +84,8 @@ roughly 26 blocks thick and tapers into nothing at its edges. North is `-Z`, eas
 | **The Center** | `0, 40` | The Withered Castle — 100 × 88 curtain wall, four gates, four corner towers, cages in front — with the **Gold Block monument** on a gilded plinth at the exact middle. |
 | **The Ruins** | `40, -60` | Broken viaduct, collapsed arches, fallen columns, a single intact obelisk. |
 | **The Graveyard** | `-58, -78` | Grave rows, a ruined chapel, a crypt stair down to a lit burial chamber, dead trees. |
-| **The Nether Portal Lobby** | `-158, 140` | The hall of **twenty** obsidian portal frames guarded by towers, connecting the Underworld to the Far Lands. |
+| **The Nether Portal Lobby** | `-221, 133` | The walled green-stone court of **twenty** obsidian portal frames set into its long walls, entered through a great dark-oak door in a polished-andesite frame, gold ore glinting in the tuff. Re-sited to the coordinates in the reference screenshot; the causeway east from its door is the Veil Castle's approach. |
+| **The Veil Castle** | `-179, 133` | The one pale building in the Underworld: quartz and sandstone, blue and teal roofs, a drum and dome that push up into the canopy band, green stained-glass roundels over the great hall, and a purple carpet running the length of the causeway, through the gate and down the hall to the dais. Sited on the paved plaza in the placement screenshot. |
 | **The Citadel** | `-158, 40` | The great library: three floors of shelves around a domed atrium open to the dark sky, and the exit stairwell with its ladder and broken bedrock. |
 | **The Pit / Tomb of the Mage of the Deep** | `-158, -70` | Statue-ringed pit with a spiral ramp, sculk tomb with sensors and shriekers, muffled corridors out, and the lava-trap corridor on the surface. |
 | **The Void Castles** | `-78…-102, 36…42` | Three floating castle islands in the western gulf, each holding an escape room (redstone-lamp floor, flooded maze, copper-bulb and slime floor), linked only by **glass bridges**. |
@@ -146,6 +147,46 @@ These three places are **additions, not reconstructions**: the references descri
 green glazing and the twenty-portal lobby, but not a glazing hall, a gate field or an End ruin. They
 extend what the sources imply rather than contradict them (same palette, same masonry, same
 atmosphere), and everything else in the map is unchanged.
+
+### The Veil Castle and the portal court
+
+Two more places stand in the far west, on ground the old map left as open wasteland, and both come
+straight from screenshots:
+
+* **The Veil Castle** (`-179, 133`) - sited on the paved plaza in the placement screenshot
+  (`Position: -179, 46, 133`), which is now its forecourt. It is the **only pale building in the
+  Underworld**: quartz and sandstone where everything else is grey and black, blue and teal roofs, a
+  drum and dome carried up to y104 so the spires push into the canopy band, circular green-glass
+  roundels over the great hall, and a purple carpet running the whole 55-block approach - causeway,
+  gate, outer court, hall - to a dais at the back. The castle's west gate faces the portal court
+  across the causeway.
+* **The Nether Portal Lobby** (`-221, 133`) - re-sited from the old blackstone plaza at
+  `-158, 140` to the coordinates in the reference screenshot (`Position: -219, 45, 125`) and re-faced
+  to match it: a walled court of green deepslate and tuff with gold ore in the stone, the **twenty**
+  portal frames set *into* its long walls rather than standing loose on a floor, and a great dark-oak
+  door in a polished-andesite frame on the axis. Bedrock has no `black_andesite` block, so the frame
+  is `polished_andesite`.
+
+### Sky beacons
+
+Every landmark has a **colour beacon**: a slender, banded mast of stained glass that rises out of the
+top of the building and punches up through the canopy to a lantern crown at y123, above every sheet in
+the sky. It is the one thing in the world that is never behind glass, which is the point - the Underworld
+is a near-flat grey plate under a sheet of overlapping glass, and before this there was no way to tell
+where you were from the air.
+
+There are sixteen stained glasses and twenty-three landmarks, so each beacon is a `main` colour with an
+`accent` band and every *pair* is unique; `bun test` asserts that no two landmarks share one. The
+beacons run **after** the canopy rather than before it - a mast drawn first would have a sheet of sky
+glass land on top of it - and they anchor to the landmark's own structure, not to the highest block in
+the column, because the canopy hangs green fronds as far down as y84 and a naive scan puts every mast
+in the world on a piece of sky.
+
+Purgatory gets its own, built inside the transplant rather than in `beacons.ts`: it is a 250-block
+tower with no exterior, so a mast in the sky would be useless. Instead a green glass column stands in
+the middle of the office rotunda at source-local (274, 283) - the room in the `Position: -623, 270, 23`
+screenshot - runs from its floor at y251 up through the storeys above and out onto the roof at y282,
+which is the top of the island and the only thing on Purgatory visible from the Underworld.
 
 ### The wasteland between the set pieces
 
@@ -284,11 +325,13 @@ bun install
 bun run build:map        # generate dist/*.mcworld + docs/map-preview.jpg  (~5 s)
 bun run inspect          # read the world back: keys, subchunk round-trip, level.dat, zip
 bun run typecheck        # tsc -b --noEmit
-bun test                 # 37 tests: serializer, zip, metadata, palette, terrain, landmarks
+bun test                 # 99 tests: serializer, zip, metadata, palette, terrain, landmarks
 bun run validate         # every block state vs Bedrock 1.26.51
 bun run map              # ASCII map of the realm for layout checks
 bun run audit            # per-landmark audit: did each one actually build something?
 bun run check            # the whole gate: typecheck + test + validate + build + inspect
+bun run preview:images   # render the world to preview/img/*.png + preview/index.html
+bun run preview:serve    # serve that page on 0.0.0.0:$PORT (this is the preview command)
 ```
 
 `.github/workflows/ci.yml` runs exactly `bun run check` on every push to `main` and every pull
@@ -307,7 +350,8 @@ src/world/      config.ts (seed, realm, versions)  layout.ts (landmark coordinat
                 terrain regions)  terrain.ts (heightfield, chasms, lava lake)  structures.ts
                 (towers, curtain walls, keeps, bridges, glass bridges, glazing panels, rose
                 windows, mazes, terraces)
-                areas.ts (the seventeen landmarks)  roads.ts  decorate.ts  icon.ts
+                areas.ts (the twenty-three landmarks)  roads.ts  decorate.ts  icon.ts
+                beacons.ts (one coloured sky mast per landmark)  veil_castle.ts
                 scene.ts (the generation pipeline, in order)  world.ts (voxel buffer + painting
                 primitives)
 src/tools/      inspect-world.ts, map-ascii.ts, landmark-audit.ts, validate-palette.ts
@@ -347,7 +391,13 @@ Verified programmatically on every build:
 * not a single gravity block (gravel, sand, concrete powder) reached the world, checked in every
   subchunk palette;
 * terrain generation is deterministic, every landmark lands on solid ground, and every one of the
-  seventeen landmarks places its signature geometry (`bun run audit` prints the counts);
+  twenty-three landmarks places its signature geometry (`bun run audit` prints the counts);
+* every landmark has a sky beacon, no two beacons share a colour pair, and every crown stands above
+  the canopy rather than behind it;
+* the Veil Castle's purple approach is one unbroken 55-block run from the causeway to the hall, and
+  the castle's quartz never reaches into the portal court next door;
+* the Warden's bowl contains no glazing at all, and still has its sculk, its catalyst rim and its
+  disarmed shrieker - the arena's plate is glazed, the hole is not;
 * the plate is actually torn: 52 columns open through it into the void, the rim hangs masonry into
   the void beside it, and the outer band of the plate carries the same density of ruin as the middle
   (all three are asserted in `bun test`, because all three were quietly false before);

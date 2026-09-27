@@ -270,6 +270,7 @@ async function main(): Promise<void> {
       `(cx ${purgatory.minCx}..${purgatory.maxCx}, cz ${purgatory.minCz}..${purgatory.maxCz})`,
   );
   log(`lit the purgatory's unlit rooms: ${purgatory.lampsPlaced} ceiling lamps`);
+  log(`raised the purgatory office beacon: ${purgatory.beaconCourses} courses of glass`);
 
   await db.put(Buffer.from("game_flatworldlayers", "utf8"), Buffer.from("[]", "utf8"));
   await db.compactAll();

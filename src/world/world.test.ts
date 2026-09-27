@@ -7,6 +7,8 @@ import { generateTerrain } from "./terrain.ts";
 import { buildAllAreas } from "./areas.ts";
 import { canopyCoverage, CANOPY_BAND } from "./sky_canopy.ts";
 import { SHEETS as CANOPY_SHEETS } from "./sky_canopy.ts";
+import { beaconCourse, beaconMast, BEACON_COLOURS, BEACON_CROWN_Y } from "./beacons.ts";
+import { VEIL_COURT } from "./veil_castle.ts";
 import { serializeSubChunk } from "../bedrock/subchunk.ts";
 import { buildSceneWorld } from "./scene.ts";
 import { World } from "./world.ts";
@@ -776,7 +778,7 @@ const SIGNATURES: Record<string, string> = {
   tomb: P.sculkCatalyst.name,
   dungeonChain: P.gildedBlackstone.name,
   citadel: P.bookshelf.name,
-  portalLobby: P.portal.name,
+  portalLobby: P.polishedAndesite.name,
   glassworks: P.greenGlass.name,
   portalField: P.cryingObsidian.name,
   endRuin: P.endPortal.name,
@@ -785,6 +787,7 @@ const SIGNATURES: Record<string, string> = {
   splice: P.enchantingTable.name,
   ancientCity: P.chiseledDeepslate.name,
   wardenArena: P.sculkShrieker.name,
+  veilCastle: P.smoothQuartz.name,
 };
 
 describe("landmark footprints", () => {
@@ -1024,5 +1027,460 @@ describe("the split tables and the collapsed seam", () => {
     const glass = countBlock(world, P.purpleGlass.name, cx - 36, cz - 10, cx - 30, cz + 2)
       + countBlock(world, P.purpleGlass.name, cx + 30, cz - 2, cx + 36, cz + 10);
     expect(glass, "the sheared void windows should still be glazed").toBeGreaterThanOrEqual(4);
+  });
+});
+
+/**
+ * "Every landmark gets a colour beacon, its own colour, so I can see it in the
+ * sky."
+ *
+ * The failure modes this block exists to catch are all invisible in a build log
+ * and all of them still leave glass at the column, so none of them would be
+ * caught by counting glass:
+ *
+ *  - a mast anchored on a *canopy sheet* rather than on the landmark, which is
+ *    four blocks tall and stands in the sky;
+ *  - two landmarks sharing a colour pair, so the beacon tells you nothing;
+ *  - a crown at the same height as the sheets it is supposed to be seen
+ *    against, so the one thing above the glass is behind it.
+ */
+describe("the sky beacons", () => {
+  test("every landmark has one, and no two are the same colour", () => {
+    expect(
+      Object.keys(BEACON_COLOURS).sort(),
+      "every landmark needs a beacon colour, and no others",
+    ).toEqual(Object.keys(LANDMARKS).sort());
+
+    const seen = new Map<string, string>();
+    const clashes: string[] = [];
+    for (const [id, colours] of Object.entries(BEACON_COLOURS)) {
+      const pair = `${colours.main.name}|${colours.accent.name}`;
+      const other = seen.get(pair);
+      if (other) clashes.push(`${id} and ${other} are both ${colours.label}`);
+      seen.set(pair, id);
+      // A label is what the map tool and the notes print; an empty one means
+      // somebody added a landmark and forgot to describe its colour.
+      expect(colours.label, `${id} has no colour label`).toBeTruthy();
+    }
+    expect(clashes, `beacons that cannot be told apart: ${clashes.join("; ")}`).toEqual([]);
+  });
+
+  test("each mast is a banded column in that landmark's own colour", () => {
+    const world = generateWorld();
+    for (const id of Object.keys(LANDMARKS) as Array<keyof typeof LANDMARKS>) {
+      const mast = beaconMast(world, id);
+      const colours = BEACON_COLOURS[id];
+      // The crown is the beacon's own colour, dead centre of the cap.
+      expect(
+        world.get(mast.x, mast.crownY, mast.z)?.name,
+        `${id}'s crown should be ${colours.main.name}`,
+      ).toBe(colours.main.name);
+      // ...crowned with light, or it is a coloured stripe and not a beacon.
+      expect(world.get(mast.x, mast.crownY + 1, mast.z)?.name, `${id} has no lantern`).toBe(P.seaLantern.name);
+      expect(world.get(mast.x, mast.crownY + 2, mast.z)?.name, `${id} has no glowstone`).toBe(P.glowstone.name);
+
+      // The shaft: banded, and carrying the accent somewhere along it.
+      let bands = 0;
+      let accents = 0;
+      for (let y = mast.baseY; y < mast.crownY; y++) {
+        const name = world.get(mast.x, y, mast.z)?.name;
+        if (name === P.obsidian.name) bands++;
+        if (name === colours.accent.name) accents++;
+      }
+      expect(bands, `${id}'s mast has no dark banding`).toBeGreaterThan(1);
+      expect(accents, `${id}'s mast never shows its accent colour`).toBeGreaterThan(0);
+      // The banding has to be the shared one, or every mast is unique again.
+      expect(beaconCourse(colours, 0).name, "banding must be the shared obsidian course").toBe(P.obsidian.name);
+    }
+  });
+
+  test("every crown stands clear of the canopy, so no beacon is behind glass", () => {
+    // The whole point of the pass. A crown at or below the top of the canopy is
+    // a mast you can only see through a sheet, which is the state the world was
+    // in before this existed.
+    const world = generateWorld();
+    for (const id of Object.keys(LANDMARKS) as Array<keyof typeof LANDMARKS>) {
+      const mast = beaconMast(world, id);
+      expect(mast.crownY, `${id}'s crown is behind the canopy`).toBeGreaterThan(CANOPY_BAND.ceiling);
+      expect(mast.crownY + 2, `${id}'s crown runs past the build ceiling`).toBeLessThan(CONFIG.maxY);
+    }
+    expect(BEACON_CROWN_Y, "the crown height should itself clear the canopy").toBeGreaterThan(CANOPY_BAND.ceiling);
+  });
+
+  test("NEGATIVE: a mast is anchored on its landmark, never on the sky", () => {
+    // The bug this catches is subtle and total. `glassSky` hangs green fronds
+    // two to eight blocks below every sheet, so glass reaches down to y84: a
+    // mast anchored by "the highest block in this column" finds a frond, in
+    // every landmark's centre column at once, and the whole world grows a
+    // 28-block mast hanging in the canopy with nothing under it. It still puts
+    // glass at the column, so only an explicit floor catches it.
+    const world = generateWorld();
+    const stranded: string[] = [];
+    for (const id of Object.keys(LANDMARKS) as Array<keyof typeof LANDMARKS>) {
+      const mast = beaconMast(world, id);
+      if (mast.baseY >= CANOPY_BAND.floor) stranded.push(`${id} (base y${mast.baseY})`);
+    }
+    expect(stranded, `beacons anchored in the sky: ${stranded.join("; ")}`).toEqual([]);
+  });
+
+  test("NEGATIVE: the beacons are thin enough not to thin the sky", () => {
+    // 23 shafts have to be invisible as a change to the canopy. Coverage is the
+    // blunt half of that check; the sharp half is the block count, because the
+    // obvious "improvement" - widening the mast into a lattice so it reads from
+    // further off - multiplies this by an order of magnitude and would still
+    // leave coverage looking fine.
+    const world = generateWorld();
+    const { covered, total } = canopyCoverage(world);
+    expect(covered / total, "the sky lost too much of its glass to the beacons").toBeGreaterThan(0.8);
+    let beaconBlocks = 0;
+    for (const id of Object.keys(LANDMARKS) as Array<keyof typeof LANDMARKS>) {
+      const mast = beaconMast(world, id);
+      beaconBlocks += mast.crownY + 3 - mast.baseY;
+    }
+    expect(
+      beaconBlocks,
+      `${beaconBlocks} blocks of beacon for ${Object.keys(LANDMARKS).length} landmarks - a mast has stopped being a mast`,
+    ).toBeLessThan(1400);
+  });
+});
+
+/**
+ * The Veil Castle: the reference's great pale palace, sited on the paved plaza
+ * in the placement screenshot.
+ */
+describe("the Veil Castle", () => {
+  const LEVEL = 46;
+  const court = VEIL_COURT;
+
+  const countIn = (
+    world: World,
+    x1: number,
+    z1: number,
+    x2: number,
+    z2: number,
+    y1: number,
+    y2: number,
+    match: (name: string) => boolean,
+  ): number => {
+    let n = 0;
+    for (let z = z1; z <= z2; z++) {
+      for (let x = x1; x <= x2; x++) {
+        for (let y = y1; y <= y2; y++) {
+          const name = world.get(x, y, z)?.name;
+          if (name && match(name)) n++;
+        }
+      }
+    }
+    return n;
+  };
+  const inFootprint = (world: World, match: (name: string) => boolean, y1 = 45, y2 = CONFIG.maxY): number => {
+    const f = LANDMARKS.veilCastle.footprint;
+    return countIn(world, f.x1, f.z1, f.x2, f.z2, y1, y2, match);
+  };
+
+  test("stands on the exact point the placement screenshot gave", () => {
+    // `Position: -179, 46, 133`. The player was standing on a paved plaza; the
+    // plaza is now the castle's forecourt, so the two coordinates have to be
+    // walkable ground at plaza level rather than inside a wall.
+    expect(court).toEqual({ x: -179, z: 133 });
+    const world = generateWorld();
+    const name = world.get(court.x, LEVEL, court.z)?.name;
+    // Dead on the approach axis, so the placement point is the purple carpet
+    // itself rather than the pale stone either side of it. Either is the
+    // castle; neither is bare ground.
+    expect(
+      name === P.purpleConcrete.name || name === P.magentaConcrete.name || name === P.smoothStone.name,
+      `the placement point is ${name}, which is neither castle paving nor its carpet`,
+    ).toBe(true);
+    expect(world.surfaceAt(court.x, court.z), "the forecourt should be at plaza level").toBe(LEVEL);
+    // ...and open above it: a castle built on the screenshot's spot that roofs
+    // over the spot is not on the spot.
+    expect(world.get(court.x, LEVEL + 1, court.z)?.name, "the forecourt should be open sky").toBe(AIR.name);
+  });
+
+  test("is the pale thing in a grey map: quartz, sandstone, and blue roofs", () => {
+    const world = generateWorld();
+    // The canon palette is grey and black; this is the one landmark that is
+    // not, and it has to be unmistakably so rather than a grey building with a
+    // few white blocks on it.
+    expect(inFootprint(world, (n) => n === P.smoothQuartz.name), "no quartz").toBeGreaterThan(3000);
+    expect(inFootprint(world, (n) => n === P.quartz.name), "no quartz block").toBeGreaterThan(1500);
+    expect(inFootprint(world, (n) => n === P.smoothSandstone.name), "no sandstone").toBeGreaterThan(1500);
+    expect(inFootprint(world, (n) => n === P.chiseledSandstone.name), "no sandstone trim").toBeGreaterThan(800);
+    // The roofs: blue on the halls and spires, teal banded round the dome.
+    expect(inFootprint(world, (n) => n === P.blueConcrete.name), "no blue roofs").toBeGreaterThan(1500);
+    expect(inFootprint(world, (n) => n === P.lightBlueConcrete.name), "no pale blue roofs").toBeGreaterThan(1000);
+    expect(inFootprint(world, (n) => n === P.cyanConcrete.name), "the dome is not banded").toBeGreaterThan(200);
+  });
+
+  test("hangs green roundels on the facade, the way the reference does", () => {
+    const world = generateWorld();
+    // The signature motif: a big circular green-glass window in a sandstone
+    // ring. Three of them over the great hall's west face, on the approach
+    // axis, plus the one over the east gate.
+    expect(inFootprint(world, (n) => n.includes("green_stained_glass")), "no green roundel glass").toBeGreaterThan(600);
+    expect(inFootprint(world, (n) => n.includes("lime_stained_glass")), "no lime in the roundels").toBeGreaterThan(400);
+    // A ring is sandstone; a filled disc is not, and a disc is what you get if
+    // the radius test is off by one.
+    expect(inFootprint(world, (n) => n === P.chiseledSandstone.name)).toBeGreaterThan(800);
+  });
+
+  test("carries a purple carpet from the causeway, through the gate, into the hall", () => {
+    const world = generateWorld();
+    // The reference's strongest single image is the approach: a purple carpet
+    // running the length of a bridge to a black doorway. So it has to be one
+    // unbroken run, not three disconnected patches.
+    let run = 0;
+    let best = 0;
+    for (let x = -211; x <= -156; x++) {
+      const name = world.get(x, LEVEL, court.z)?.name;
+      if (name === P.purpleConcrete.name || name === P.magentaConcrete.name) {
+        run++;
+        best = Math.max(best, run);
+      } else {
+        run = 0;
+      }
+    }
+    expect(best, "the purple approach is not one unbroken run to the gate").toBeGreaterThan(50);
+    // ...and it is carried right through the hall to the dais at the back.
+    let inside = 0;
+    for (let x = -169; x <= -156; x++) {
+      const name = world.get(x, LEVEL, court.z)?.name;
+      if (name === P.purpleConcrete.name || name === P.magentaConcrete.name) inside++;
+    }
+    expect(inside, "the carpet stops at the threshold instead of going through it").toBeGreaterThan(10);
+  });
+
+  test("raises a drum and a dome that push up into the canopy band", () => {
+    // A castle whose spires stop below the glass reads as a model of a castle.
+    // The dome is deliberately allowed into the canopy band, so the one place
+    // the sky is thickest is also the place the castle is tallest.
+    const world = generateWorld();
+    let top = 0;
+    for (let dz = -12; dz <= 12; dz++) {
+      for (let dx = -12; dx <= 12; dx++) {
+        for (let y = CONFIG.maxY - 1; y >= LEVEL; y--) {
+          const name = world.get(LANDMARKS.veilCastle.center.x + 40 + dx, y, court.z + dz)?.name;
+          if (name && name !== AIR.name) {
+            top = Math.max(top, y);
+            break;
+          }
+        }
+      }
+    }
+    expect(top, "the drum and dome should reach into the canopy band").toBeGreaterThan(CANOPY_BAND.floor);
+    // The dome's blue, sampled on its axis rather than by counting the roofs.
+    let dome = 0;
+    for (let y = LEVEL + 40; y <= LEVEL + 58; y++) {
+      const name = world.get(-146, y, court.z)?.name;
+      if (name === P.blueConcrete.name || name === P.cyanConcrete.name || name === P.lightBlueConcrete.name) dome++;
+    }
+    expect(dome, "the drum has no dome on top of it").toBeGreaterThan(12);
+  });
+
+  test("NEGATIVE: it does not build over the portal lobby next door", () => {
+    // The castle's footprint and the lobby's are 16 blocks apart and the
+    // castle's `pad` ramps four blocks further, so this is one arithmetic slip
+    // away from paving the lobby's great door in sandstone.
+    const world = generateWorld();
+    const lobby = LANDMARKS.portalLobby.footprint;
+    expect(
+      countIn(world, lobby.x1, lobby.z1, lobby.x2, lobby.z2, LEVEL, CONFIG.maxY, (n) => n === P.smoothQuartz.name),
+      "the castle's quartz has reached into the portal lobby",
+    ).toBe(0);
+    // And the lobby's own signature stone is not inside the castle either.
+    expect(
+      countIn(
+        world,
+        LANDMARKS.veilCastle.footprint.x1,
+        LANDMARKS.veilCastle.footprint.z1,
+        LANDMARKS.veilCastle.footprint.x2,
+        LANDMARKS.veilCastle.footprint.z2,
+        LEVEL,
+        CONFIG.maxY,
+        (n) => n === P.polishedAndesite.name,
+      ),
+      "the portal lobby has built into the castle",
+    ).toBe(0);
+  });
+});
+
+/**
+ * The Nether Portal Lobby, re-sited and re-faced from the screenshot.
+ */
+describe("the Nether Portal Lobby", () => {
+  const count = (world: World, match: (name: string) => boolean): number => {
+    const f = LANDMARKS.portalLobby.footprint;
+    let n = 0;
+    for (let z = f.z1; z <= f.z2; z++) {
+      for (let x = f.x1; x <= f.x2; x++) {
+        for (let y = 45; y < CONFIG.maxY; y++) {
+          const name = world.get(x, y, z)?.name;
+          if (name && match(name)) n++;
+        }
+      }
+    }
+    return n;
+  };
+
+  test("is a green-stone court around the coordinates the screenshot gave", () => {
+    // `Position: -219, 45, 125`. Whatever the exact centre, that point has to
+    // be inside the court and standing on its floor.
+    const f = LANDMARKS.portalLobby.footprint;
+    expect(-219).toBeGreaterThanOrEqual(f.x1);
+    expect(-219).toBeLessThanOrEqual(f.x2);
+    expect(125).toBeGreaterThanOrEqual(f.z1);
+    expect(125).toBeLessThanOrEqual(f.z2);
+
+    const world = generateWorld();
+    const { x: cx, z: cz } = LANDMARKS.portalLobby.center;
+    const floor = world.surfaceAt(cx, cz);
+    const name = world.get(cx, floor, cz)?.name;
+    expect(
+      name === P.tuff.name || name === P.polishedTuff.name || name?.includes("stained_glass"),
+      `the court floor at ${cx},${cz} is ${name}`,
+    ).toBe(true);
+    // The canon green, on the structure and not only in the lamps.
+    expect(count(world, (n) => n === P.greenGlass.name), "no green glass in the lobby").toBeGreaterThan(300);
+    expect(count(world, (n) => n === P.tuff.name), "no tuff in the lobby").toBeGreaterThan(300);
+    expect(count(world, (n) => n === P.deepslate.name), "no deepslate in the lobby").toBeGreaterThan(300);
+  });
+
+  test("has a great dark-oak door in a polished-andesite frame", () => {
+    const world = generateWorld();
+    expect(count(world, (n) => n.includes("dark_oak")), "no dark-oak door").toBeGreaterThan(40);
+    expect(count(world, (n) => n === P.polishedAndesite.name), "no andesite frame").toBeGreaterThan(300);
+    // The screenshot's gold-ore glints in the green stone.
+    expect(count(world, (n) => n === P.goldOre.name), "no gold ore in the walls").toBeGreaterThan(20);
+  });
+
+  test("still has twenty portals, set into its walls", () => {
+    const world = generateWorld();
+    // Twenty is the canon count and it is the landmark's reason for existing.
+    // Asserted on portal *blocks*, not frames, because a frame that lost its
+    // interior to the wall behind it would still count as a frame.
+    const portals = count(world, (n) => n === P.portal.name);
+    expect(portals, "the lobby has lost its portals").toBeGreaterThanOrEqual(100);
+    // ...and they are in the walls, not standing loose on the floor: nothing
+    // but the frame's own obsidian and glass may sit in the court's middle.
+    const { x: cx, z: cz } = LANDMARKS.portalLobby.center;
+    let loose = 0;
+    for (let dz = -6; dz <= 6; dz++) {
+      for (let dx = -6; dx <= 6; dx++) {
+        for (let y = 45; y < CONFIG.maxY; y++) {
+          if (world.get(cx + dx, y, cz + dz)?.name === P.portal.name) loose++;
+        }
+      }
+    }
+    expect(loose, "portals are standing in the middle of the court").toBe(0);
+  });
+
+  test("NEGATIVE: the old blackstone plaza is gone", () => {
+    // The lobby used to be a polished-blackstone pad with loose frames on it.
+    // The whole point of the re-siting is that it is now green deepslate and
+    // tuff with the gates in the walls, so blackstone losing to andesite is
+    // the assertion that the rebuild actually happened.
+    const world = generateWorld();
+    const black = count(world, (n) => n === P.blackstone.name || n === P.polishedBlackstone.name);
+    const frame = count(world, (n) => n === P.polishedAndesite.name);
+    expect(black, "there is still a blackstone plaza in the lobby").toBeLessThan(frame);
+  });
+});
+
+/**
+ * "Keep the Warden stuff, change the deepslate with the glass we've been
+ * using."
+ *
+ * The arena is the one place where that instruction has a hard limit: the bowl
+ * has to stay dark or there is nothing to be afraid of. So this block asserts
+ * both halves - the plate is glazed, and the hole is not.
+ */
+describe("the Warden's arena, glazed", () => {
+  const { x: cx, z: cz } = LANDMARKS.wardenArena.center;
+  const LEVEL = 46;
+  const RADIUS = 21;
+
+  test("the plate's outer face is a glazed foundation, not a wall of rock", () => {
+    const world = generateWorld();
+    const f = LANDMARKS.wardenArena.footprint;
+    let glass = 0;
+    let rock = 0;
+    for (let x = f.x1; x <= f.x2; x++) {
+      for (const z of [f.z1, f.z2]) {
+        for (let y = LEVEL - 10; y <= LEVEL; y++) {
+          const name = world.get(x, y, z)?.name;
+          if (!name) continue;
+          if (name.includes("stained_glass")) glass++;
+          else if (name.includes("deepslate")) rock++;
+        }
+      }
+    }
+    expect(glass, "the arena's outward face should be mostly glazing").toBeGreaterThan(300);
+    expect(glass, "glazing should outnumber the deepslate framing on the rim").toBeGreaterThan(rock);
+  });
+
+  test("the ring walk around the lip is glazed, and it is standing on something", () => {
+    const world = generateWorld();
+    let glass = 0;
+    let floating = 0;
+    for (let i = 0; i < 720; i++) {
+      const a = (i / 720) * Math.PI * 2;
+      for (let radius = 22; radius <= 25; radius++) {
+        const x = Math.round(cx + Math.cos(a) * radius);
+        const z = Math.round(cz + Math.sin(a) * radius);
+        if (world.get(x, LEVEL, z)?.name?.includes("stained_glass")) glass++;
+        // The walk used to be radius 22 on a plate only 40 deep, so its north
+        // and south arcs were written out over the void with nothing under
+        // them. Every course of it has to be on land.
+        if (!world.isLand(x, z) || world.surfaceAt(x, z) !== LEVEL) floating++;
+      }
+    }
+    expect(glass, "the ring walk should be glazed the whole way round").toBeGreaterThan(400);
+    expect(floating, "the ring walk is floating over the void").toBe(0);
+  });
+
+  test("NEGATIVE: no glazing reaches inside the bowl", () => {
+    // The constraint the whole rework hangs off. A *disc*, not the bounding
+    // square: the corners of the square are plate, and the plate is glazed on
+    // purpose. And it stops four blocks below the rim, because that band is
+    // the walk, not the pit.
+    const world = generateWorld();
+    let glass = 0;
+    for (let dz = -RADIUS; dz <= RADIUS; dz++) {
+      for (let dx = -RADIUS; dx <= RADIUS; dx++) {
+        if (Math.hypot(dx, dz) > RADIUS) continue;
+        for (let y = LEVEL - 30; y <= LEVEL - 4; y++) {
+          if (world.get(cx + dx, y, cz + dz)?.name?.includes("stained_glass")) glass++;
+        }
+      }
+    }
+    expect(glass, "no glazing may be laid inside the Warden's bowl").toBe(0);
+  });
+
+  test("NEGATIVE: the Warden himself is untouched - bowl, sculk, shrieker and all", () => {
+    const world = generateWorld();
+    const floor = world.surfaceAt(cx, cz);
+    const rim = world.surfaceAt(cx + RADIUS, cz);
+    expect(floor, "the bowl should still be sunk below its rim").toBeLessThan(rim - 10);
+    let sculk = 0;
+    let catalyst = 0;
+    for (let dz = -RADIUS; dz <= RADIUS; dz++) {
+      for (let dx = -RADIUS; dx <= RADIUS; dx++) {
+        if (Math.hypot(dx, dz) > RADIUS) continue;
+        const s = world.surfaceAt(cx + dx, cz + dz);
+        for (let y = s; y <= s + 1 && y < CONFIG.maxY; y++) {
+          const name = world.get(cx + dx, y, cz + dz)?.name;
+          if (name === P.sculk.name) sculk++;
+          if (name === P.sculkCatalyst.name) catalyst++;
+        }
+      }
+    }
+    expect(sculk, "the bowl's floor must still be spreading with sculk").toBeGreaterThan(100);
+    expect(catalyst, "the bowl's rim must still be ringed with catalyst").toBeGreaterThan(5);
+    let shrieker = 0;
+    for (let y = 0; y < CONFIG.maxY; y++) {
+      if (world.get(cx, y, cz)?.name === P.sculkShrieker.name) shrieker++;
+    }
+    expect(shrieker, "the shrieker should still be sitting at the bottom of the pit").toBe(1);
   });
 });

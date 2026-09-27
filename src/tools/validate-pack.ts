@@ -435,9 +435,9 @@ try {
 }
 
 // manifest cross-check: BP must depend on the RP and vice versa is not required
-for (const [pack, expect] of [
-  ["packs/soul-keepers-bp/manifest.json", "data"],
-  ["packs/soul-keepers-rp/manifest.json", "resources"],
+for (const [pack, expect, other] of [
+  ["packs/soul-keepers-bp/manifest.json", "data", "Soul Keepers Resources"],
+  ["packs/soul-keepers-rp/manifest.json", "resources", "Soul Keepers"],
 ] as const) {
   const manifest = JSON.parse(readFileSync(pack, "utf8"));
   if (!manifest.header?.uuid) problems.push(`${pack}: no header.uuid`);
@@ -447,6 +447,27 @@ for (const [pack, expect] of [
   }
   const types = (manifest.modules ?? []).map((m: { type: string }) => m.type);
   if (!types.includes(expect)) problems.push(`${pack}: expected a "${expect}" module, found ${types.join(", ")}`);
+  // The name is what the player reads in Settings, so it has to be a real name
+  // and the two packs have to be tellable apart: two identically named packs
+  // read as one, and the wrong one enabled shows up as "nothing happens".
+  const name: string = manifest.header?.name ?? "";
+  if (name.length < 3 || name === pack || name.toLowerCase().includes("pack.name")) {
+    problems.push(`${pack}: header.name looks like a placeholder (${JSON.stringify(name)})`);
+  }
+  if (name === other) problems.push(`${pack}: header.name "${name}" is the same as the other pack's`);
+}
+
+// header.name and the lang file have to agree, or the pack list and the pack
+// screen disagree about what the pack is called.
+{
+  const rp = JSON.parse(readFileSync("packs/soul-keepers-rp/manifest.json", "utf8"));
+  const lang = readFileSync("packs/soul-keepers-rp/texts/en_US.lang", "utf8");
+  const declared = /^pack\.name=(.*)$/m.exec(lang)?.[1]?.trim();
+  if (declared !== rp.header?.name) {
+    problems.push(
+      `packs/soul-keepers-rp: texts/en_US.lang says pack.name=${JSON.stringify(declared)} but the manifest says ${JSON.stringify(rp.header?.name)}`,
+    );
+  }
 }
 
 console.log(`bedrock version: ${data.version}`);

@@ -11,6 +11,8 @@
     "validate": "bun run src/tools/validate-palette.ts",
     "validate:pack": "bun run src/tools/validate-pack.ts",
     "map": "bun run src/tools/map-ascii.ts",
+    "preview:images": "bun run src/tools/render-preview.ts",
+    "preview:serve": "bun run src/tools/serve-preview.ts",
     "audit": "bun run src/tools/landmark-audit.ts",
     "typecheck": "tsc -b --noEmit",
     "test": "bun test",
