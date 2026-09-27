@@ -16,6 +16,11 @@ import {
   glazedPanel,
   roseWindow,
   shopInterior,
+  brokenSplitTable,
+  portalPillar,
+  portalRibbon,
+  splitTable,
+  voidWindow,
 } from "./structures.ts";
 import { glassEyeSpire, eyeOculus, hybridPortal } from "./structures_end.ts";
 import { eyeWindow, glassMosaic, prismPillar, seaLanternPost, PRISM, VIVID_PRISM } from "./structures_glass.ts";
@@ -220,6 +225,42 @@ export function buildPortalField(world: World): void {
   // portal, fused at a corrupted seam. South of the grid, clear of all 18
   // gates above.
   hybridPortal(world, cx, level + 1, cz + 34, true);
+
+  // --- the collapsed seam ---------------------------------------------------
+  // The field's own history, written on its floor: the line the portals used to
+  // run along before they were cut, now a ribbon of dead portal blocks lying in
+  // the obsidian. It runs east-west between the gate rows rather than through
+  // them, so the walk across the field still reads as crossing a grid of gates
+  // rather than following one seam.
+  portalRibbon(world, cx - 32, cz - 33, cx + 32, cz - 33, level + 1);
+  portalRibbon(world, cx - 32, cz + 27, cx + 32, cz + 27, level + 1);
+  // A short spur off the north ribbon, the way a branch was tried and abandoned.
+  portalRibbon(world, cx + 12, cz - 33, cx + 12, cz - 20, level + 1);
+
+  // --- the standing stumps --------------------------------------------------
+  // Four portal pillars left standing where their frames sheared off. Placed on
+  // the gate grid's own diagonals so they read as the remains of gates rather
+  // than as a separate monument, and tall enough to be landmarks from the far
+  // side of the field.
+  for (const [dx, dz] of [[-30, -20], [30, -20], [-30, 16], [30, 16]] as const) {
+    portalPillar(world, cx + dx, cz + dz, level + 1, 6, DEEPSLATE_STYLE);
+  }
+
+  // --- the sheared windows --------------------------------------------------
+  // Two void windows set into the field's edge: the frames a gate used to sit
+  // in, still standing, with the portal behind the glass either lit or dead.
+  voidWindow(world, cx - 33, cz - 4, level + 1, 4, false, DEEPSLATE_STYLE);
+  voidWindow(world, cx + 33, cz + 4, level + 1, 4, false, DEEPSLATE_STYLE);
+
+  // --- the abandoned ritual -------------------------------------------------
+  // A row of split tables along the west edge, past the last gate. Whatever
+  // was made here to cut the portals is broken: two of the three are ruined and
+  // only the middle one still stands. Out of the way of every gate above.
+  for (let i = 0; i < 3; i++) {
+    const z = cz - 14 + i * 12;
+    if (i === 1) brokenSplitTable(world, cx - 32, z, level + 1, false, DEEPSLATE_STYLE);
+    else splitTable(world, cx - 32, z, level + 1, false, DEEPSLATE_STYLE);
+  }
 }
 
 export function buildPortalLobby(world: World): void {

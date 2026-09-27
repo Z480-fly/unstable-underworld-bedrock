@@ -18,7 +18,14 @@
 import { AIR, bs, P, type BlockState } from "./blocks.ts";
 import { LANDMARKS, type RectRegion } from "./layout.ts";
 import { hash2, Rng } from "./noise.ts";
-import { BLACKSTONE_STYLE, areaGround, pad } from "./structures.ts";
+import {
+  BLACKSTONE_STYLE,
+  areaGround,
+  brokenSplitTable,
+  glassSplitTable,
+  pad,
+  splitTable,
+} from "./structures.ts";
 import { eyeWindow, glassMosaic, prismPillar, seaLanternPost, PRISM, VIVID_PRISM } from "./structures_glass.ts";
 import type { World } from "./world.ts";
 
@@ -310,6 +317,34 @@ export function buildSplice(world: World): void {
     const px = side === 0 ? cx - halfW + 1 : side === 1 ? cx + halfW - 1 : cx + rng.int(-halfW, halfW);
     const pz = side === 2 ? cz - halfD + 1 : side === 3 ? cz + halfD - 1 : cz + rng.int(-halfD, halfD);
     world.set(px, level + 1 + rng.int(0, 8), pz, P.sculkVein);
+  }
+
+  // --- the split tables -----------------------------------------------------
+  // The reference's signature machine, given room to be walked around: a
+  // crafting table, a nether portal and an enchanting table sharing one black
+  // stone bench, read left-to-right as a single workstation that was cut in
+  // half and put back together. Two rows either side of the aisle, so the hall
+  // is a workshop you circulate through rather than a corridor with props in it.
+  //
+  // Placed *after* the creepy fill, not with the machines above it. The fill
+  // writes to the surface column of anything unprotected, and a split table's
+  // bench sits exactly on that column - built earlier, the fill drops warped
+  // growth and glass chips straight through the bench and the tables stop
+  // reading as tables at all.
+  // Six whole, two glazed, two failed. Deliberately weighted towards whole:
+  // this is the reference's signature machine and the hall is a workshop that
+  // still works, so most of the benches stand. Two ruined rows at the far end
+  // read as attrition without turning the room into a scrapyard.
+  const SPLICE_ROW_KINDS = [2, 1, 0, 0, 1] as const;
+  for (let row = -2; row <= 2; row++) {
+    const z = cz + row * 11;
+    const kind = SPLICE_ROW_KINDS[row + 2]!;
+    for (const x of [cx - 20, cx + 20]) {
+      const alongX = x < cx;
+      if (kind === 0) splitTable(world, x, z, level + 1, alongX, style);
+      else if (kind === 1) glassSplitTable(world, x, z, level + 1, alongX, style);
+      else brokenSplitTable(world, x, z, level + 1, alongX, style);
+    }
   }
 
   world.protect(cx, cz, Math.max(halfW, halfD) + 2);

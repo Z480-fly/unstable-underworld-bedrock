@@ -459,3 +459,202 @@ entries), **39/39 inspection checks**, 5 374 realm subchunks round-tripped block
 `dist` ~8.74 MB. Probed the written `.mcworld` directly: 1762 chiseled_deepslate, 1026
 cracked_deepslate_bricks, 144 sculk, 46 sculk_vein, 25 sculk_catalyst, 14 sculk_sensor,
 2 sculk_shrieker, across 27 chunks in the city's footprint.
+
+---
+
+## Soul Keepers: the mob pack (2026-09-27)
+
+The mob half of the previous request, delivered as an actual pack pair under
+`packs/` rather than folded into the map generator. Two UUID-linked packs:
+
+* `packs/soul-keepers-bp` - data + script behaviour pack
+* `packs/soul-keepers-rp` - resource pack
+
+Mobs, all on the `soulkeepers:` namespace (**new** identifiers, deliberately not
+overriding vanilla - replacing `minecraft:zombie` in a BP substitutes the whole
+entity and breaks the mob if any component is missing):
+
+| identifier | behaviour |
+| --- | --- |
+| `soul_keeper_trader` | trade table: gold, gold blocks, netherite scrap, netherite ingot, Keeper blade/helm; half damage from players |
+| `soul_keeper_skeleton` | archer - Flame + Infinity bow, Protection IV netherite |
+| `soul_keeper_zombie` | bruiser - Sharpness V + Fire Aspect II sword, Protection IV netherite |
+| `ashen_blaze` | fires the `wither_skull` projectile |
+| `wither_skull` | projectile: impact damage + wither on hit, not spawnable |
+
+### Why the enchantments are in a script
+
+There is no declarative way to say "equip this, enchanted with that" in a Bedrock
+entity file. `minecraft:equipment` places items; enchantments live on item NBT and
+only the Script API can set them at spawn. So behaviour/health/AI/loot stay in
+JSON (`entities/*.json`) and `scripts/keeper_gear.js` applies the gear in an
+`entitySpawn` handler. Two of my own bugs lived here first: an invented
+`minecraft:custom_components` key, and an invented `addEntityLoad` API. Both
+were removed rather than left to fail at runtime.
+
+### `bun run validate:pack`
+
+New tool (`src/tools/validate-pack.ts`). JSON that parses is not JSON Bedrock
+accepts, so it checks: every file parses, identifiers are lowercase
+colon-namespaced and in an expected namespace, manifests carry the right module
+type, and **every `minecraft:` string anywhere in the pack resolves in the real
+1.26.51 dataset**. That last check is deliberately broad rather than
+key-specific - the key-specific version *missed* `minecraft:dark`, which is the
+exact Java-only block that bit the map generator.
+
+The validator is itself negative-tested: fed a bad identifier and a
+`minecraft:dark` reference, it fails on both. A validator that only ever passes
+proves nothing. It currently flags one real thing as a known event
+(`minecraft:wither_on_hit`, a projectile event not an item), which is whitelisted
+explicitly rather than by weakening the check.
+
+### What is NOT done - the pack has never been loaded in Minecraft
+
+There is no client in this environment, so none of the following is verified:
+
+1. **No textures ship.** The RP references five entity textures and two item
+   textures that do not exist as PNGs. Mobs will show the missing-texture
+   pattern. **The green-infected / dark-Soul-Keeper-cloak look is therefore not
+   present** - it needs 64x64 skins dropped into
+   `packs/soul-keepers-rp/textures/entity/`.
+2. **The Ashen Blaze's `behavior.shoot` is not bound to `soulkeepers:wither_skull`**
+   yet, so it will most likely fire default shots.
+3. **The trader trade UI on a custom entity** is the most likely thing to need
+   adjusting; some builds expect trades in a separate `trade_tables/` file.
+
+All three are written up in `packs/README.md` rather than left for the user to
+discover by testing.
+
+---
+
+## Fixing the Warden's arena: it was bricked in (2026-09-27)
+
+Reported as "I can't tell where it is". It turned out to be two separate bugs,
+both of which had to be found by reading the *written* world rather than the
+generator.
+
+### Bug 1 - the arena was sited on top of the Glassworks
+
+`wardenArena` was at (214,208), footprint x 190..238, z 188..228. The Glassworks
+footprint is x 150..226, z 188..264. They overlapped by **1 517 columns**, and
+the Glassworks is built later, so its floor went down over the pit. Re-sited to
+**(-300,300)**, which is fully void, in-realm, and clear of every footprint.
+
+### Bug 2 - the pit was never actually carved (the real one)
+
+Re-siting did not fix it. `wardenPit` fills rock from y=3 up to the bowl floor
+and records that floor in the surface map - but it **never cleared the space
+above its own floor**. `plate()` runs first and fills the whole footprint solid
+from y=3 to the arena level, so the result was 27 blocks of deepslate sitting on
+top of a pit whose surface map said the floor was at y18. The generator's own
+`surfaceAt` returned 18, so every in-memory check passed; the player walked over
+a flat plate.
+
+Fixed by carving explicitly in the same loop:
+
+```ts
+for (let yy = 3; yy <= y; yy++) world.set(x, yy, z, P.deepslate);
+world.set(x, y, z, t < 0.35 ? P.sculk : P.cobbledDeepslate);
+for (let yy = y + 1; yy <= rimY + 2; yy++) world.set(x, yy, z, AIR);   // <- was missing
+```
+
+### Three wrong tests before one right test
+
+The instinct was to assert on the footprint rectangles not overlapping. That is
+the wrong invariant: footprints are padded bounds and eight pairs have always
+legitimately touched (breach/frostPocket, mazeValley/village, fields/splice...).
+Rewriting it as "centre is buried" flagged the Splice, which is *correctly*
+flat-topped. Rewriting it as "there is an interior" flagged the maze, the
+village and the tomb, which are correctly open to the sky. All three were
+guesses; the real invariant had not been identified yet.
+
+The right check is in `src/tools/inspect-world.ts` and it reads the bytes that
+were actually written: **is the landmark's own signature material still there,
+and does it have headroom?** It took three attempts to get the exposure test
+right, each caught by a negative test:
+
+1. Counting the material present passed with the pit bricked in - presence is
+   not the invariant, reachability is.
+2. "Is the next block air" passed, because the bricked pit had a 1-block air gap
+   at y19 before the rock resumed at y20. A shrieker you cannot stand in front
+   of is not reachable.
+3. **Headroom >= 2 blocks** is the version that discriminates.
+
+Each version was proven by re-introducing the bug and confirming the check went
+red (`wardenArena:0/1 exposed`, "sealed by a later build"), then confirming it
+went green on the fix. A check that has never been seen to fail is not a check.
+
+`bun run inspect` is now **40 checks**, up from 39.
+
+### Result
+
+Arena at **(-300,300)**: /tp -300 20 300 - the ring walk is at y46 and the
+sculk pit floor at y18, a 28-block descent. Sunken City at (280,290):
+/tp 280 14 290, floor at y12. Both shrieker/sculk confirmed exposed in the
+written file.
+
+## Giving Grok's helpers a job: the split tables
+
+Six helpers arrived on `main` with **no call sites at all** - `splitTable`,
+`brokenSplitTable`, `glassSplitTable`, `portalRibbon`, `voidWindow` and
+`portalPillar`, all in `structures.ts`. The code was correct and typechecked; it
+was simply invisible, because a function nobody calls puts no blocks in the
+world. The `.mcworld` had changed by 166 bytes, which was build noise, not
+geometry. Worth being blunt about: the screenshot that prompted this was the
+Splice, which had been in the world for some time and was not from these
+commits at all.
+
+Two homes, chosen on canon rather than on convenience:
+
+**The Splice** gets the split tables. Its own description is "a crafting table
+spliced into an enchanting table, both set in end-portal frames", so a bench
+that runs crafting table | nether portal | enchanting table into one another is
+literally the reference machine. Five rows of two, either side of the aisle, so
+the hall is a workshop you walk through rather than a corridor with props in it.
+
+The ordering matters and was the one real trap. The Splice's `creepy fill` pass
+writes to the **surface column** of anything that looks unprotected, and a
+split table's bench sits exactly on that column. Built alongside the other
+machines, the fill drops warped growth and glass chips straight through the
+benches. They go in *after* the fill, immediately before the closing
+`world.protect`.
+
+**The Portal Field** gets the seam and the stumps: two full-width portal
+ribbons north and south of the gate grid, a short abandoned spur off the north
+one, four sheared-off `portalPillar` stumps on the grid's own diagonals, two
+`voidWindow` frames on the field's edge, and three split tables along the west
+edge - one still standing, two ruined - for whatever was meant to cut the
+portals in the first place.
+
+The field is inside a `pad()`, so the whole footprint is already protected and
+neither the detail pass nor the path painter can touch any of it.
+
+### A finding from the first test run
+
+The initial row mix was computed as `Math.abs(row * 7 + side) % 3`, which
+handed **four of the five rows** to `brokenSplitTable`. That variant only places
+a crafting table about 55% of the time, so the bench count came back 7 where 10
+was expected. The arithmetic was doing what it was told; the design was wrong.
+Half the hall's signature machine lying ruined reads as a scrapyard, not a
+workshop, so the mix is now fixed and explicit: six whole, two glazed, two
+failed. The test caught it because the threshold was written down first.
+
+### Verification
+
+Two tests in `src/world/world.test.ts`, both asserting the geometry is in the
+**generated world** rather than merely in the helper - the same distinction that
+made the arena bug visible. The Splice test counts portal slices (exactly 10;
+every variant keeps its portal, which is the part that makes it a splice rather
+than two tables standing near each other) and benches (at least 8; the ruined
+rows carry a crafting table only some of the time). The field test checks both
+ribbons run the full 60-plus blocks of the field's width, the west stumps still
+have their deepslate, and both windows are still glazed - a stub instead of a
+line is what a path painter crossing the seam would leave.
+
+The Splice test was negative-tested by dropping a row: it goes red at 6 of 10.
+A check never seen to fail is not a check.
+
+Full gate: typecheck clean, **51/51 tests**, palette OK, `world OK (40 checks)`.
+Signature exposure confirms the geometry in the written file rather than in the
+generator: `splice` 0/5 -> **10/15**, `portalField` 35/53 -> **36/54**, and
+`wardenArena` still **1/1**.

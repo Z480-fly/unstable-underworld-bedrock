@@ -557,33 +557,9 @@ describe("terrain", () => {
     // map and only shows up in game, so each one is fingerprinted by a block
     // that only it places. The tomb's rooms sit *below* the ground and the pads
     // sit flush with it, so the whole footprint volume is scanned.
-    const signatures: Record<string, string> = {
-      breach: P.obsidian.name,
-      ruinedCastle: P.portal.name,
-      fields: P.wheat.name,
-      ashenReaches: P.lava.name,
-      center: P.goldBlock.name,
-      graveyard: "minecraft:polished_blackstone_brick_slab",
-      ruins: P.chiseledDeepslate.name,
-      mazeValley: P.deepslateBricks.name,
-      village: P.coarseDirt.name,
-      frostPocket: P.blueIce.name,
-      tomb: P.sculkCatalyst.name,
-      dungeonChain: P.gildedBlackstone.name,
-      citadel: P.bookshelf.name,
-      portalLobby: P.portal.name,
-      glassworks: P.greenGlass.name,
-      portalField: P.cryingObsidian.name,
-      endRuin: P.endPortal.name,
-      glassGrove: P.purpleGlass.name,
-      cathedral: P.blueGlass.name,
-      splice: P.enchantingTable.name,
-      ancientCity: P.chiseledDeepslate.name,
-      wardenArena: P.sculkShrieker.name,
-    };
     const world = generateWorld();
     for (const landmark of Object.values(LANDMARKS)) {
-      const signature = signatures[landmark.id]!;
+      const signature = SIGNATURES[landmark.id]!;
       expect(signature, `no signature block registered for ${landmark.id}`).toBeTruthy();
       const f = landmark.footprint;
       let found = 0;
@@ -634,5 +610,167 @@ describe("the Sunken City and the Warden's Deep Dark", () => {
     // can_summon:false matters here - a world that spawns a boss on load is
     // hostile, and the arena is meant to be found on the player's terms.
     expect(P.sculkShrieker.states).toMatchObject({ can_summon: false });
+  });
+});
+
+
+/**
+ * The block each landmark is fingerprinted by - one that only it places.
+ * Module scope so the "did it build?" test and the "was it paved over?" test
+ * cannot drift apart.
+ */
+const SIGNATURES: Record<string, string> = {
+  breach: P.obsidian.name,
+  ruinedCastle: P.portal.name,
+  fields: P.wheat.name,
+  ashenReaches: P.lava.name,
+  center: P.goldBlock.name,
+  graveyard: "minecraft:polished_blackstone_brick_slab",
+  ruins: P.chiseledDeepslate.name,
+  mazeValley: P.deepslateBricks.name,
+  village: P.coarseDirt.name,
+  frostPocket: P.blueIce.name,
+  tomb: P.sculkCatalyst.name,
+  dungeonChain: P.gildedBlackstone.name,
+  citadel: P.bookshelf.name,
+  portalLobby: P.portal.name,
+  glassworks: P.greenGlass.name,
+  portalField: P.cryingObsidian.name,
+  endRuin: P.endPortal.name,
+  glassGrove: P.purpleGlass.name,
+  cathedral: P.blueGlass.name,
+  splice: P.enchantingTable.name,
+  ancientCity: P.chiseledDeepslate.name,
+  wardenArena: P.sculkShrieker.name,
+};
+
+describe("landmark footprints", () => {
+  // The Warden's arena was originally sited at (214,208), which overlapped the
+  // Glassworks by 1 517 columns. The Glassworks is built later, so its floor
+  // was laid straight over the sculk pit and sealed it - the arena existed in
+  // the generator and was completely invisible in the world. Neither the audit
+  // nor the existing landmark test noticed, because both only check that a
+  // landmark built *something*; neither asks whether a later build buried it.
+  //
+  // Footprint rectangles are padded bounds and legitimately abut each other
+  // (breach/frostPocket, mazeValley/village and others have always touched),
+  // so "the rectangles overlap" is NOT the defect and is not what is asserted.
+  // The defect is a landmark whose own centre is buried - i.e. something was
+  // built over the top of it. That is what sealing looked like, and it is
+  // detectable: a real landmark has geometry rising above its centre.
+  test("no landmark has been paved over by a later build", () => {
+    // The invariant that was actually violated, checked the way the player
+    // experiences it: is the landmark's own signature material still present
+    // in the part of its footprint that is uniquely its own?
+    //
+    // Open-air landmarks (the maze, the village, the tomb) have sky at their
+    // centre, and the Splice is flat-topped by design, so neither "has an
+    // interior" nor "rises above its neighbours" is a valid test. What
+    // *is* always true is that the thing you built the landmark out of is
+    // still there, in quantity, in its own footprint.
+    const world = generateWorld();
+    const gone: string[] = [];
+    for (const landmark of Object.values(LANDMARKS)) {
+      const f = landmark.footprint;
+      if (f.kind !== "rect") continue;
+      const signature = SIGNATURES[landmark.id]!;
+      let found = 0;
+      for (let z = f.z1; z <= f.z2; z++) {
+        for (let x = f.x1; x <= f.x2; x++) {
+          // scan the whole column, not just up to the surface: a landmark
+          // that builds above ground (or below it, like the tomb) is the norm
+          for (let y = 0; y < CONFIG.maxY; y++) {
+            const b = world.get(x, y, z);
+            if (!b) break;
+            if (b.name === signature) found++;
+          }
+        }
+      }
+      if (found === 0) gone.push(`${landmark.id} (no ${signature} anywhere in its own footprint)`);
+    }
+    expect(gone, `landmarks paved over by a later build: ${gone.join("; ")}`).toEqual([]);
+  });
+
+  test("the warden arena's bowl is not sealed by a later build", () => {
+    // Regression: the pit must still be the lowest thing at its own centre,
+    // and a shrieker must sit at the bottom of it. A floor written over the
+    // top leaves both of these true in the generator but false in the world.
+    const world = generateWorld();
+    const { x: cx, z: cz } = LANDMARKS.wardenArena.center;
+    const floor = world.surfaceAt(cx, cz);
+    const rim = world.surfaceAt(cx - 22, cz);
+    expect(floor, "the pit floor should be well below the rim").toBeLessThan(rim - 15);
+
+    let shrieker = 0;
+    for (let y = 0; y < CONFIG.maxY; y++) {
+      if (world.get(cx, y, cz)?.name === P.sculkShrieker.name) shrieker++;
+    }
+    expect(shrieker, "the shrieker should still be sitting at the bottom of the pit").toBe(1);
+  });
+});
+
+describe("the split tables and the collapsed seam", () => {
+  // These six helpers (splitTable, brokenSplitTable, glassSplitTable,
+  // portalRibbon, voidWindow, portalPillar) arrived with no call sites at all -
+  // correct code, and invisible in the world. Wiring them in is only worth
+  // anything if they are still standing afterwards, and "still standing" is
+  // exactly what the Splice's own fill pass and the path painter are both
+  // capable of undoing: the fill writes to the surface column, and the path
+  // painter writes AIR one block above it. So each of these asserts the
+  // geometry is in the *generated world*, not just in the helper.
+  const countBlock = (world: World, name: string, x1: number, z1: number, x2: number, z2: number): number => {
+    let n = 0;
+    for (let z = z1; z <= z2; z++) {
+      for (let x = x1; x <= x2; x++) {
+        for (let y = 0; y < CONFIG.maxY; y++) {
+          if (world.get(x, y, z)?.name === name) n++;
+        }
+      }
+    }
+    return n;
+  };
+
+  test("the Splice's split table rows survived its own detail pass", () => {
+    const world = generateWorld();
+    const { x: cx, z: cz } = LANDMARKS.splice.center;
+    // Ten tables: five rows of two, either side of the aisle. Each row is 11
+    // blocks apart and the benches are 3 wide, so nothing overlaps and the
+    // counts are a clean check that none was filled over.
+    const west = { x1: cx - 22, z1: cz - 26, x2: cx - 18, z2: cz + 26 };
+    const east = { x1: cx + 18, z1: cz - 26, x2: cx + 22, z2: cz + 26 };
+    const tables = (name: string): number =>
+      countBlock(world, name, west.x1, west.z1, west.x2, west.z2)
+      + countBlock(world, name, east.x1, east.z1, east.x2, east.z2);
+
+    // Every variant keeps its portal slice - that is the part that makes it a
+    // splice rather than two tables standing next to each other. All ten.
+    expect(tables(P.portal.name), "each split table should have kept its portal slice").toBe(10);
+    // Six of the ten rows are whole or glazed and carry a crafting table; the
+    // two ruined rows carry one only some of the time, so the floor is eight.
+    expect(tables(P.craftingTable.name), "the Splice should carry its split table benches")
+      .toBeGreaterThanOrEqual(8);
+  });
+
+  test("the Portal Field's seam, pillars and windows all produced geometry", () => {
+    const world = generateWorld();
+    const { x: cx, z: cz } = LANDMARKS.portalField.center;
+    // The ribbon runs the width of the field at two fixed z values; if the
+    // path painter had run across it, the count would be a stub, not a line.
+    expect(
+      countBlock(world, P.portal.name, cx - 33, cz - 34, cx + 33, cz - 32),
+      "the north ribbon should run the full width of the field",
+    ).toBeGreaterThanOrEqual(60);
+    expect(
+      countBlock(world, P.portal.name, cx - 33, cz + 26, cx + 33, cz + 28),
+      "the south ribbon should run the full width of the field",
+    ).toBeGreaterThanOrEqual(60);
+    // The four standing stumps: a pillar is solid deepslate from the base up,
+    // so four of them is unmistakably more than the gate frames contribute.
+    const westStumps = countBlock(world, P.deepslateBricks.name, cx - 33, cz - 24, cx - 27, cz - 16);
+    expect(westStumps, "the standing portal pillars should still be built").toBeGreaterThanOrEqual(20);
+    // The windows: tinted glass either side of a lit portal core.
+    const glass = countBlock(world, P.purpleGlass.name, cx - 36, cz - 10, cx - 30, cz + 2)
+      + countBlock(world, P.purpleGlass.name, cx + 30, cz - 2, cx + 36, cz + 10);
+    expect(glass, "the sheared void windows should still be glazed").toBeGreaterThanOrEqual(4);
   });
 });

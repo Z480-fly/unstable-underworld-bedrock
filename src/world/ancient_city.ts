@@ -188,8 +188,17 @@ function wardenPit(world: World, cx: number, cz: number, rimY: number, seed: num
       const y = Math.round(rimY - depth * (1 - t * t) - (d > radius - 3 ? 3 : 0));
       if (y < 3) continue;
 
+      // Fill the rock under the floor, then *carve the void above it*.
+      //
+      // The carve is the part that is easy to leave out. `plate()` runs first
+      // and fills this whole footprint solid from y=3 to the arena level, so
+      // without an explicit clear the bowl is bricked in: the surface map says
+      // the floor is at y18 while 27 blocks of deepslate sit on top of it, and
+      // the player walks over a flat plate with the pit sealed underneath.
       for (let yy = 3; yy <= y; yy++) world.set(x, yy, z, P.deepslate);
       world.set(x, y, z, t < 0.35 ? P.sculk : P.cobbledDeepslate);
+      // clear everything from just above the floor up past the rim
+      for (let yy = y + 1; yy <= rimY + 2; yy++) world.set(x, yy, z, AIR);
       world.setSurface(x, z, y);
       world.setLand(x, z, true);
       world.protect(x, z);
@@ -201,9 +210,12 @@ function wardenPit(world: World, cx: number, cz: number, rimY: number, seed: num
   sculkPatch(world, cx + 6, cz - 5, 9, seed + 1, 0.5);
   sculkPatch(world, cx - 7, cz + 6, 8, seed + 2, 0.45);
 
-  // the shrieker, ringed so it reads as the focal point
+  // the shrieker, ringed so it reads as the focal point. It is two blocks
+  // tall, so the space above it is cleared too - a shrieker with rock on top
+  // is a block the player can see but never activate.
   const floor = world.surfaceAt(cx, cz);
   world.set(cx, floor, cz, P.sculkShrieker);
+  world.set(cx, floor + 1, cz, AIR);
   for (let dx = -3; dx <= 3; dx++) {
     for (let dz = -3; dz <= 3; dz++) {
       if (Math.max(Math.abs(dx), Math.abs(dz)) !== 3) continue;

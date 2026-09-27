@@ -208,8 +208,8 @@ export const LANDMARKS = {
   wardenArena: {
     id: "wardenArena",
     name: "The Warden's Deep Dark",
-    center: { x: 214, z: 208 },
-    footprint: { kind: "rect", x1: 190, z1: 188, x2: 238, z2: 228 },
+    center: { x: -300, z: 300 },
+    footprint: { kind: "rect", x1: -324, z1: 280, x2: -276, z2: 320 },
     source:
       "A lit ring walk around a sculk bowl, with a switchback stair down to a floor of spreading sculk and a shrieker at the centre - an arena for a fight that has not happened yet.",
   },

@@ -47,6 +47,7 @@ import {
 import { CONFIG } from "../world/config.ts";
 import { GRAVITY_BLOCK_NAMES } from "../world/blocks.ts";
 import { buildSceneWorld, type Scene } from "../world/scene.ts";
+import { LANDMARKS } from "../world/layout.ts";
 
 const TAG_NAMES: Record<number, string> = Object.fromEntries(
   Object.entries(CHUNK_TAG).map(([name, tag]) => [tag, name]),
@@ -82,6 +83,46 @@ interface SubChunkRecord {
   subY: number;
   value: Buffer;
 }
+
+/**
+ * The block each landmark is fingerprinted by in the *written world* - one
+ * only that landmark places. Kept in step with the same map in world.test.ts
+ * and src/tools/landmark-audit.ts.
+ */
+const LANDMARK_SIGNATURES: Record<string, string> = {
+  breach: "minecraft:obsidian",
+  ruinedCastle: "minecraft:portal",
+  fields: "minecraft:wheat",
+  ashenReaches: "minecraft:lava",
+  center: "minecraft:gold_block",
+  graveyard: "minecraft:polished_blackstone_brick_slab",
+  ruins: "minecraft:chiseled_deepslate",
+  mazeValley: "minecraft:deepslate_bricks",
+  village: "minecraft:coarse_dirt",
+  frostPocket: "minecraft:blue_ice",
+  tomb: "minecraft:sculk_catalyst",
+  dungeonChain: "minecraft:gilded_blackstone",
+  citadel: "minecraft:bookshelf",
+  portalLobby: "minecraft:portal",
+  glassworks: "minecraft:green_stained_glass",
+  portalField: "minecraft:crying_obsidian",
+  endRuin: "minecraft:end_portal",
+  glassGrove: "minecraft:purple_stained_glass",
+  cathedral: "minecraft:blue_stained_glass",
+  splice: "minecraft:enchanting_table",
+  ancientCity: "minecraft:chiseled_deepslate",
+  wardenArena: "minecraft:sculk_shrieker",
+};
+
+const LANDMARK_RECTS: Array<[string, { x1: number; z1: number; x2: number; z2: number }, string]> = Object.entries(
+  LANDMARKS,
+)
+  .filter(([, lm]) => lm.footprint.kind === "rect")
+  .map(([id, lm]) => [
+    id,
+    lm.footprint as { x1: number; z1: number; x2: number; z2: number },
+    lm.name,
+  ]);
 
 /** A Data3D payload together with the chunk it describes. */
 interface Data3DRecord {
@@ -381,6 +422,135 @@ async function inspectGeneratorRoundTrip(
 }
 
 /**
+ * Every landmark must still be *findable in the written world*, by the block
+ * it is fingerprinted with.
+ *
+ * This check exists because the Warden's arena was once sited so that it
+ * overlapped the Glassworks by 1 517 columns. Both structures were generated,
+ * every other check passed, and the round-trip was clean - but the Glassworks
+ * is built later, so its floor was laid across the top of the sculk pit and
+ * the arena was invisible in game. Nothing in the generator could see it,
+ * because the generator *is* the thing that buried it.
+ *
+ * So this reads the bytes that were actually written and asks the only
+ * question that matters: is the landmark's own material still in its own
+ * footprint, in the world the player will open?
+ */
+async function inspectLandmarkSurvival(subChunks: SubChunkRecord[], report: Report): Promise<void> {
+  // Presence is not the invariant - *reachability* is. When the arena was
+  // sited over the Glassworks, its shrieker was still present in the written
+  // bytes; it was simply sealed under a floor laid across the top of it, so
+  // the player walked over a flat plate and never saw the pit below. A check
+  // that only counted blocks passed straight through that.
+  //
+  // So a landmark counts as surviving only if some of its own material has
+  // open air directly above it. A block at the top of a subchunk is treated
+  // as exposed, because an unwritten subchunk above is implicitly air.
+  const total = new Map<string, number>();
+  const exposed = new Map<string, number>();
+  const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
+  interface Boundary { id: string; cx: number; cz: number; x: number; y: number; z: number }
+  const boundary: Boundary[] = [];
+  const solidAt = new Map<string, string>();
+  const AIR_NAMES = new Set(["minecraft:air", "minecraft:cave_air", "minecraft:void_air", "minecraft:structure_void"]);
+  const isAir = (n: string | undefined) => n === undefined || AIR_NAMES.has(n);
+
+  for (const sub of subChunks) {
+    // the transplanted Purgatory region is outside the realm's chunk range
+    if (sub.cx < -22 || sub.cx > 21 || sub.cz < -22 || sub.cz > 21) continue;
+    let layer: ParsedLayer;
+    try {
+      layer = await parseSubChunkPayload(sub.value);
+    } catch {
+      continue; // already reported by the parse pass
+    }
+    const names = paletteNames(layer);
+    const indices = layer.block_indices.value.value;
+    for (let i = 0; i < SUBCHUNK_BLOCK_COUNT; i++) {
+      const name = names[indices[i] ?? 0];
+      if (!name) continue;
+      const x = sub.cx * 16 + (i >> 8);
+      const z = sub.cz * 16 + ((i >> 4) & 15);
+      const localY = i & 15;
+      if (!AIR_NAMES.has(name)) {
+        solidAt.set(`${sub.cx},${sub.cz},${sub.subY * 16 + localY},${x},${z}`, name);
+      }
+      for (const [id, footprint] of LANDMARK_RECTS) {
+        if (x < footprint.x1 || x > footprint.x2 || z < footprint.z1 || z > footprint.z2) continue;
+        if (name !== LANDMARK_SIGNATURES[id]) continue;
+        bump(total, id);
+        if (localY === 15) {
+          // top of a subchunk: resolved against the subchunk above, below
+          boundary.push({ id, cx: sub.cx, cz: sub.cz, x, y: sub.subY * 16 + 15, z });
+        }
+        // Whether there is open air DIRECTLY above this block. The block above
+        // lives in the next subchunk when this one is at its top, so that case
+        // needs a second pass rather than an assumption - assuming "exposed"
+        // is exactly what let a bricked-in pit pass, because the shrieker
+        // happened to sit at the top of a subchunk boundary.
+        // Headroom, not just "is the next block air". A 1-block air gap under
+        // solid rock is not somewhere a player can stand or see - the arena
+        // pit came out exactly like that (air at y19, deepslate from y20) and
+        // still read as reachable. Require real open space above.
+        let headroom = 0;
+        for (let k = 1; k <= 4; k++) {
+          const up = localY + k <= 15 ? names[indices[i + k] ?? 0] : undefined;
+          if (!isAir(up)) break;
+          headroom++;
+        }
+        if (headroom >= 2) bump(exposed, id);
+      }
+    }
+  }
+
+  // Presence is asserted for every landmark. Reachability is only asserted
+  // where a player has to physically get to the block - the arena's shrieker.
+  //
+  // A blanket "is there air above it" rule is wrong: a lava lake is meant to
+  // have lava under air with a crust over it, an enchanting table sits in a
+  // floor, a tomb's sculk catalyst is deliberately sealed in a pit. Those all
+  // read as 0% exposed and are perfectly correct. The difference for the
+  // arena is that its shrieker is the thing you walk down a stair to touch.
+  // Second pass: for every signature block that sat at the top of a subchunk,
+  // look up whether the subchunk above it is absent (implicitly air) or has an
+  // air block at the matching position.
+  for (const b of boundary) {
+    const above = solidAt.get(`${b.cx},${b.cz},${b.y + 1},${b.x},${b.z}`);
+    if (isAir(above)) bump(exposed, b.id);
+  }
+
+  const MUST_BE_REACHABLE = new Set(["wardenArena"]);
+
+  const buried = LANDMARK_RECTS.filter(([id]) => {
+    if (!MUST_BE_REACHABLE.has(id)) return false;
+    const t = total.get(id) ?? 0;
+    const e = exposed.get(id) ?? 0;
+    return t > 0 && e === 0;
+  }).map(([id, , name]) => {
+    const t = total.get(id) ?? 0;
+    return `${name} (all ${t} ${LANDMARK_SIGNATURES[id]} sealed - unreachable)`;
+  });
+  const absent = LANDMARK_RECTS.filter(([id]) => (total.get(id) ?? 0) === 0).map(
+    ([id, , name]) => `${name} (no ${LANDMARK_SIGNATURES[id]} at all)`,
+  );
+
+  const summary = LANDMARK_RECTS.map(([id]) => {
+    const t = total.get(id) ?? 0;
+    const e = exposed.get(id) ?? 0;
+    return `${id}:${t > 0 ? `${e}/${t} exposed` : "MISSING"}`;
+  }).join(", ");
+  console.log(`\nlandmark survival: ${LANDMARK_RECTS.length - absent.length}/${LANDMARK_RECTS.length} present, ` +
+    `${LANDMARK_RECTS.length - buried.length - absent.length} reachable where required`);
+  console.log(`  ${summary}`);
+  check(
+    report,
+    buried.length === 0,
+    "landmarks",
+    `${buried.length} landmark(s) sealed by a later build: ${buried.join(" | ")}`,
+  );
+}
+
+/**
  * Data3D is the biome + heightmap record every 1.18+ chunk carries, and the
  * heightmap is the one part of it that mirrors the generator, so it gets the
  * same treatment as the block payloads: decode it here *and* read it back
@@ -625,6 +795,7 @@ async function main(): Promise<void> {
   if (arg === undefined && scan.subChunks.length > 0) {
     const scene = buildSceneWorld();
     await inspectGeneratorRoundTrip(scene, scan.subChunks, report);
+    await inspectLandmarkSurvival(scan.subChunks, report);
     await inspectData3D(scene, scan.data3D, report);
   } else {
     await inspectData3D(undefined, scan.data3D, report);
