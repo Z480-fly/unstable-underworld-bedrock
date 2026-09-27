@@ -1,0 +1,78 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "soulkeepers:soul_keeper_zombie",
+      "is_spawnable": true,
+      "is_summonable": true
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": ["soul_keeper", "zombie", "monster", "undead"]
+      },
+      "minecraft:health": {
+        "value": 50,
+        "max": 50
+      },
+      "minecraft:collision_box": {
+        "width": 0.6,
+        "height": 1.9
+      },
+      "minecraft:pushable": {
+        "is_pushable": true,
+        "is_pushable_by_piston": true,
+        "pushable_by_player": true
+      },
+      "minecraft:push_through": { "value": 1.0 },
+      "minecraft:physics": {},
+      "minecraft:movement": { "value": 0.26 },
+      "minecraft:underwater_movement": {},
+      "minecraft:navigation": {
+        "can_path_over_water": true,
+        "can_swim": true,
+        "can_pass_doors": true,
+        "can_open_doors": true
+      },
+      "minecraft:behavior.float": { "priority": 0 },
+      "minecraft:behavior.hurt_by_target": { "priority": 1 },
+      "minecraft:behavior.nearest_attackable_target": {
+        "priority": 2,
+        "must_see": false,
+        "must_reach": true,
+        "within_radius": 24.0,
+        "entity_types": [
+          {
+            "filters": {
+              "any_of": [
+                { "test": "is_family", "subject": "other", "value": "player" },
+                { "test": "is_family", "subject": "other", "value": "mob" }
+              ]
+            }
+          }
+        ]
+      },
+      "minecraft:behavior.look_at_player": { "priority": 3, "look_distance": 24, "look_time": 2 },
+      "minecraft:behavior.look_at_target": { "priority": 4 },
+
+      "//": "`can_leap` is not a property of this goal in any current version - it is silently dropped. Everything else here is real, and the bruiser is the mob that has to actually be able to reach you.",
+      "minecraft:behavior.melee_attack": {
+        "priority": 5,
+        "speed_multiplier": 1.15,
+        "track_target": true,
+        "attack_types": ["hurt"],
+        "reach_multiplier": 1.6,
+        "cooldown_time": 0.5,
+        "max_dist": 3
+      },
+      "minecraft:behavior.random_stroll": { "priority": 6, "speed_multiplier": 0.6 },
+
+      "minecraft:equipment": {
+        "table": "equipment/keeper_zombie.json",
+        "slot_drop_chance": [0, 0.5]
+      },
+      "minecraft:loot": {
+        "table": "loot_tables/keeper_zombie.json"
+      }
+    }
+  }
+}

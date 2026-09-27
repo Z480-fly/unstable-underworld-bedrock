@@ -852,3 +852,100 @@ them negative.
 typecheck clean, **67/67 tests** (54 + 6 lighting + 7 new city/canopy),
 palette OK, `world OK (40 checks)`. Artifact **9,766,459 bytes** (was
 9,719,254): +47 KB for the city glazing and 20k lamps.
+
+---
+
+## The mob backlog: the Soul Keepers pack, and why nothing in it worked
+
+The map half of the mob request shipped long ago. The addon half had been
+written, never loaded, and — as it turned out — could not have worked. This
+session went through it mob by mob.
+
+### The pack was full of components that do not exist
+
+`minecraft:behavior.shoot` appears **zero times** in the Bedrock entity JSON
+schema. It is not a component, in any version. Both the archer and the Ashen
+Blaze were built on it, which means neither of them ever shot anything — and
+nothing about that is visible from the file. The pack parses, the pack
+validates, the mob spawns, it just does not do its one job.
+
+A real mob fires through the `minecraft:shooter` **component**, which the
+`minecraft:behavior.ranged_attack` goal then reads to learn what to fire. The
+`ranged_attack` schema is also strict (`additionalProperties: false`) and its
+property names are not the intuitive ones: `burst_shots` and `burst_interval`,
+`attack_radius`, `charge_shoot_trigger` — no `range`, no `pull_duration`, both
+of which the pack had been using.
+
+The audit turned up more of the same:
+
+| What | Reality |
+| --- | --- |
+| `minecraft:trade_table.table_id`, `.new_trades` | Neither exists. There is no inline trade list; `table` is a **path** to a trade table file. |
+| `minecraft:interact` with `interact_text`/`use_item`/`interact_event` | All three belong inside an entry in `interactions`. On the component they are dropped, which left the trader with **no way to be interacted with at all**. |
+| `behavior.look_at_player.look_frequency` | Not a property. It is `look_time`. |
+| `behavior.melee_attack.can_leap` | Not a property. |
+| `equipment.reset_on_spawn` | Not a property; only `table` and `slot_drop_chance` are. |
+| `behavior.walk_in_water`, `behavior.jump_avoiding_block` | Not components. |
+| `minecraft:repairable` | Takes a `repair_items` array of `{ items, repair_amount }`, not a map of item id to `{ durability, repair_cost }`. |
+| `minecraft:equipment.table` | Pointed at `equipment/keeper_skeleton.json` and `equipment/keeper_zombie.json`, **which were never written**. |
+| the trader's cloak | The client entity declared a second geometry, material and texture that its single render controller never bound — so the Keepers' eye on its back was never drawn. |
+| both item icons | Pointed at texture keys that were not in `textures/item_texture.json`, which did not exist. |
+| the wither skull | Had a behaviour-pack entity and **no resource-pack one at all**. |
+
+Every one of these is invisible to a type checker, invisible to `JSON.parse`, and
+invisible in game except as a mob that quietly does nothing.
+
+### Textures, at last
+
+The pack shipped **no PNGs at all**, which is the reason the "green infected,
+dark Soul Keeper cloak" look did not exist — the mobs were pink-and-black
+checkers. There was no PNG encoder in the project (`jpeg-js` cannot write one),
+so there is now `src/bedrock/png.ts`: 8-bit RGBA, dependency-free, round-trip
+tested. A generated texture that silently writes a corrupt PNG is worse than one
+that writes nothing, because the corruption only shows up in the game.
+
+`src/tools/make-pack-textures.ts` paints nine textures. The humanoid UV layouts
+are written once in `paintBox` rather than hand-tabulated per body part, because
+a mis-set UV offset does not error — it just produces a mob with its face on its
+chest. Verified by decoding the output and reading it back as ASCII: head top
+and bottom at y0–7, the four head faces at y8–15, body front at x20–27 y20–31,
+exactly where `geometry.humanoid` expects them.
+
+### The validator now catches the class, not just the instance
+
+`validate:pack` previously checked that files parse, identifiers are legal, and
+`minecraft:` references exist in 1.26.51. None of that would have caught a single
+bug above. It now also checks that every `textures/...` path is a PNG that ships,
+every item icon is registered, every loot/equipment/trade table a component
+points at exists, every render controller / animation / geometry / material /
+texture an entity names exists, every `soulkeepers:` reference resolves, and the
+shipped textures still match the generator.
+
+The one worth calling out is the **reverse** direction: every geometry, material
+and texture an entity *declares* must be bound by one of its render controllers.
+That is precisely the cloak bug, and a check that only runs controllers→entity
+walks straight past it.
+
+All five new checks were negative-tested by breaking the pack on purpose
+(deleted a texture, unregistered an icon, pointed the trade table at a missing
+file, dropped the cloak controller, flipped one byte of a PNG) and confirming
+each one fails. `validate:pack` now also runs inside `bun test`
+(`src/tools/pack.test.ts`), so a pack regression fails the normal suite.
+
+### Two deliberate compromises, both documented in the README
+
+- **The Ashen Blaze uses the humanoid rig.** Its texture is painted on
+  `geometry.humanoid`'s UVs, and a hand-written `.geo.json` cannot be validated
+  from here — a geometry the game rejects means an invisible mob. Swapping later
+  is a one-line change plus a geometry file.
+- **The wither skulls need the Custom Projectiles experimental toggle**, which a
+  pack imported on a phone is exactly the situation where is *not* on. The blaze
+  has a melee fallback for that reason: without the toggle it is still a threat,
+  it just does not throw skulls.
+
+**Still not verified in game** — there is no client in this environment, so
+"valid against the schema" is the strongest claim available. The trade screen in
+particular is the most likely thing to still need adjusting.
+
+Full gate: typecheck clean, **74/74 tests**, palette OK, `world OK (40 checks)`,
+`pack OK`.

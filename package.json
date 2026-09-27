@@ -8,6 +8,7 @@
     "build:map": "bun run src/build.ts",
     "inspect": "bun run src/tools/inspect-world.ts",
     "validate": "bun run src/tools/validate-palette.ts",
+    "validate:pack": "bun run src/tools/validate-pack.ts",
     "map": "bun run src/tools/map-ascii.ts",
     "audit": "bun run src/tools/landmark-audit.ts",
     "typecheck": "tsc -b --noEmit",

@@ -1,0 +1,28 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:equipment": {
+    "//": "Referenced by soul_keeper_zombie's minecraft:equipment.table, which did not exist. See keeper_skeleton.json for why the table and the script both exist.",
+    "table": [
+      {
+        "slot": "slot.armor.head",
+        "item": "minecraft:netherite_helmet"
+      },
+      {
+        "slot": "slot.armor.torso",
+        "item": "minecraft:netherite_chestplate"
+      },
+      {
+        "slot": "slot.armor.legs",
+        "item": "minecraft:netherite_leggings"
+      },
+      {
+        "slot": "slot.armor.feet",
+        "item": "minecraft:netherite_boots"
+      },
+      {
+        "slot": "slot.weapon.mainhand",
+        "item": "minecraft:netherite_sword"
+      }
+    ]
+  }
+}

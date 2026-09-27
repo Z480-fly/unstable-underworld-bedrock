@@ -1,0 +1,86 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "soulkeepers:soul_keeper_skeleton",
+      "is_spawnable": true,
+      "is_summonable": true
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": ["soul_keeper", "skeleton", "monster", "undead"]
+      },
+      "minecraft:health": {
+        "value": 40,
+        "max": 40
+      },
+      "minecraft:collision_box": {
+        "width": 0.6,
+        "height": 1.9
+      },
+      "minecraft:pushable": {
+        "is_pushable": true,
+        "is_pushable_by_piston": true,
+        "pushable_by_player": true
+      },
+      "minecraft:push_through": { "value": 1.0 },
+      "minecraft:physics": {},
+      "minecraft:movement": { "value": 0.25 },
+      "minecraft:underwater_movement": {},
+      "minecraft:navigation": {
+        "can_path_over_water": true,
+        "can_swim": true,
+        "can_pass_doors": true,
+        "can_open_doors": true
+      },
+      "minecraft:behavior.float": { "priority": 0 },
+      "minecraft:behavior.hurt_by_target": { "priority": 1 },
+      "minecraft:behavior.nearest_attackable_target": {
+        "priority": 2,
+        "must_see": false,
+        "must_reach": true,
+        "within_radius": 24.0,
+        "entity_types": [
+          {
+            "filters": {
+              "any_of": [
+                { "test": "is_family", "subject": "other", "value": "player" },
+                { "test": "is_family", "subject": "other", "value": "mob" }
+              ]
+            }
+          }
+        ]
+      },
+      "minecraft:behavior.look_at_player": { "priority": 3, "look_distance": 24, "look_time": 2 },
+      "minecraft:behavior.look_at_target": { "priority": 4 },
+
+      "//": "`minecraft:behavior.shoot` does not exist - it is in no version of the Bedrock entity schema - and it is what this file used to have, which is why the archer never shot anything. A Bedrock mob fires by way of the `minecraft:shooter` *component*, which the `behavior.ranged_attack` goal then reads to learn what to fire.",
+      "minecraft:shooter": {
+        "projectiles": ["minecraft:arrow"],
+        "sound": "bow.shoot"
+      },
+      "minecraft:behavior.ranged_attack": {
+        "priority": 5,
+        "burst_shots": 3,
+        "burst_interval": 0.1,
+        "attack_interval": 20,
+        "attack_radius": 20.0,
+        "attack_radius_min": 3.0,
+        "charge_shoot_trigger": 0.5,
+        "charge_charged_trigger": 0.5,
+        "target_in_sight_time": 0.5,
+        "speed_multiplier": 1.0
+      },
+      "minecraft:behavior.random_stroll": { "priority": 6, "speed_multiplier": 0.6 },
+
+      "//": "Only `table` and `slot_drop_chance` are valid here. `reset_on_spawn` was set before and is silently dropped.",
+      "minecraft:equipment": {
+        "table": "equipment/keeper_skeleton.json",
+        "slot_drop_chance": [0, 0.5]
+      },
+      "minecraft:loot": {
+        "table": "loot_tables/keeper_skeleton.json"
+      }
+    }
+  }
+}

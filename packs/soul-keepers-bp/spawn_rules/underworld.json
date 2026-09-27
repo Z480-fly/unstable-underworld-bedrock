@@ -1,0 +1,97 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:spawn_rules": {
+    "description": {
+      "identifier": "soulkeepers:underworld_spawns",
+      "populations": [
+        {
+          "spawn_target": {
+            "afk": 0,
+            "block": "minecraft:sculk"
+          },
+          "despawn_rules": [
+            {
+              "filters": {
+                "any_of": [
+                  { "test": "distance_from_spawn", "operator": "<", "value": 24 }
+                ]
+              },
+              "action": "remove"
+            }
+          ],
+          "components": [
+            {
+              "filters": {
+                "any_of": [
+                  { "test": "has_space", "operator": "==", "value": true }
+                ]
+              },
+              "spawn_rules": {
+                "max_light": 7,
+                "total_pass": 5,
+                "total_fail": 20,
+                "min_light": 0,
+                "spawn_from_carved": true,
+                "spawn_from_lava": false,
+                "spawn_from_water": false,
+                "spawn_count": {
+                  "minimum": 1,
+                  "maximum": 2
+                }
+              },
+              "component_groups": [
+                "group.soul_keeper_skeleton"
+              ]
+            },
+            {
+              "filters": {
+                "any_of": [
+                  { "test": "has_space", "operator": "==", "value": true }
+                ]
+              },
+              "spawn_rules": {
+                "max_light": 7,
+                "total_pass": 4,
+                "total_fail": 20,
+                "min_light": 0,
+                "spawn_from_carved": true,
+                "spawn_from_lava": false,
+                "spawn_from_water": false,
+                "spawn_count": {
+                  "minimum": 1,
+                  "maximum": 1
+                }
+              },
+              "component_groups": [
+                "group.soul_keeper_zombie"
+              ]
+            },
+            {
+              "filters": {
+                "any_of": [
+                  { "test": "has_space", "operator": "==", "value": true }
+                ]
+              },
+              "spawn_rules": {
+                "max_light": 7,
+                "total_pass": 3,
+                "total_fail": 24,
+                "min_light": 0,
+                "spawn_from_carved": true,
+                "spawn_from_lava": false,
+                "spawn_from_water": false,
+                "spawn_count": {
+                  "minimum": 1,
+                  "maximum": 1
+                }
+              },
+              "component_groups": [
+                "group.ashen_blaze"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

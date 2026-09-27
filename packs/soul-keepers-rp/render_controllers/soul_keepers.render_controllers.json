@@ -1,0 +1,39 @@
+{
+  "format_version": "1.8.0",
+  "render_controllers": {
+    "controller.render.soul_keeper_trader": {
+      "geometry": "Geometry.default",
+      "materials": [{ "*": "Material.default" }],
+      "textures": ["Texture.default"],
+      "//": "The trader's client entity declares a second material and a second texture for the cloak, and this controller listed neither - so the cloak geometry was bound to the wrong texture and the Keepers' eye on the back of the trader was never the thing you saw. Both entries are named explicitly, in order: default first, cloak second."
+    },
+    "controller.render.soul_keeper_trader_cloak": {
+      "geometry": "Geometry.cape",
+      "materials": [{ "*": "Material.cloak" }],
+      "textures": ["Texture.cloak"]
+    },
+    "controller.render.soul_keeper_skeleton": {
+      "geometry": "Geometry.default",
+      "materials": [{ "*": "Material.default" }],
+      "textures": ["Texture.default"]
+    },
+    "controller.render.soul_keeper_zombie": {
+      "geometry": "Geometry.default",
+      "materials": [{ "*": "Material.default" }],
+      "textures": ["Texture.default"]
+    },
+    "controller.render.ashen_blaze": {
+      "geometry": "Geometry.default",
+      "materials": [{ "*": "Material.default" }],
+      "textures": ["Texture.default"]
+    },
+    "controller.render.soul_keeper_wither_skull": {
+      "geometry": "Geometry.default",
+      "materials": [{ "*": "Material.default" }],
+      "textures": ["Texture.default"],
+      "//": "No hurt flash: a wither skull that flashes red and vanishes the instant it is shot looks like a bug, not a projectile.",
+      "is_hurt_color": { "r": 0.0, "g": 0.0, "b": 0.0, "a": 0.0 },
+      "filter_lighting": true
+    }
+  }
+}

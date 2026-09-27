@@ -1,0 +1,30 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Soul Keepers",
+    "description": "The Soul Keepers: a corrupted wandering trader, enchanted undead archers and bruisers, and ashen blazes that fire wither skulls.",
+    "uuid": "6b2f4a10-3c7d-4e51-9a8b-1f0d5c7e2a41",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 21, 80]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "6b2f4a10-3c7d-4e51-9a8b-1f0d5c7e2a42",
+      "version": [1, 0, 0]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "entry": "scripts/keeper_gear.js",
+      "uuid": "6b2f4a10-3c7d-4e51-9a8b-1f0d5c7e2a43",
+      "version": [1, 0, 0]
+    }
+  ],
+  "dependencies": [
+    {
+      "uuid": "6b2f4a10-3c7d-4e51-9a8b-1f0d5c7e2a50",
+      "version": [1, 0, 0]
+    }
+  ]
+}

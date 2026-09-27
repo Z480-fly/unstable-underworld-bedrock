@@ -1,0 +1,67 @@
+{
+  "//": "Trade tables are un-versioned, un-namespaced objects - no format_version, no minecraft: wrapper - and they are not registered by folder, only referenced from an entity's minecraft:trade_table. The path in that component is this file.",
+  "//tiers": "A tier is either `trades` or `groups`; the first tier is always unlocked. One tier is enough here - these are not levelling trades, they are a fixed price list.",
+  "tiers": [
+    {
+      "trades": [
+        {
+          "wants": [{ "item": "minecraft:emerald", "quantity": 8 }],
+          "gives": [{ "item": "minecraft:gold_ingot", "quantity": 4 }],
+          "max_uses": 64,
+          "trader_exp": 1
+        },
+        {
+          "wants": [{ "item": "minecraft:emerald", "quantity": 16 }],
+          "gives": [{ "item": "minecraft:gold_block", "quantity": 1 }],
+          "max_uses": 32,
+          "trader_exp": 1
+        },
+        {
+          "wants": [{ "item": "minecraft:emerald", "quantity": 24 }],
+          "gives": [{ "item": "minecraft:netherite_scrap", "quantity": 1 }],
+          "max_uses": 16,
+          "trader_exp": 2
+        },
+        {
+          "wants": [{ "item": "minecraft:gold_ingot", "quantity": 8 }],
+          "gives": [{ "item": "minecraft:netherite_ingot", "quantity": 1 }],
+          "max_uses": 8,
+          "trader_exp": 2
+        },
+        {
+          "//": "The two Keeper items. `functions` with enchant_with_levels is how a trade hands over an already-enchanted weapon without the pack having to script it.",
+          "wants": [{ "item": "minecraft:emerald", "quantity": 32 }],
+          "gives": [
+            {
+              "item": "soulkeepers:keeper_blade",
+              "functions": [
+                {
+                  "function": "enchant_with_levels",
+                  "levels": { "min": 4, "max": 5 }
+                }
+              ]
+            }
+          ],
+          "max_uses": 4,
+          "trader_exp": 3
+        },
+        {
+          "wants": [{ "item": "minecraft:emerald", "quantity": 48 }],
+          "gives": [
+            {
+              "item": "soulkeepers:keeper_helm",
+              "functions": [
+                {
+                  "function": "enchant_with_levels",
+                  "levels": { "min": 3, "max": 4 }
+                }
+              ]
+            }
+          ],
+          "max_uses": 4,
+          "trader_exp": 3
+        }
+      ]
+    }
+  ]
+}

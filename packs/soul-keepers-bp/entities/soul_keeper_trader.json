@@ -1,0 +1,118 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "soulkeepers:soul_keeper_trader",
+      "is_spawnable": true,
+      "is_summonable": true
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": ["soul_keeper", "trader", "undead"]
+      },
+      "minecraft:health": {
+        "value": 30,
+        "max": 30
+      },
+      "minecraft:collision_box": {
+        "width": 0.6,
+        "height": 1.9
+      },
+      "minecraft:pushable": {
+        "is_pushable": true,
+        "is_pushable_by_piston": true,
+        "pushable_by_player": true
+      },
+      "minecraft:push_through": { "value": 1.0 },
+      "minecraft:physics": {},
+      "minecraft:movement": { "value": 0.24 },
+      "minecraft:underwater_movement": {},
+      "minecraft:navigation": {
+        "can_path_over_water": true,
+        "can_swim": true,
+        "can_pass_doors": true,
+        "can_open_doors": true
+      },
+      "minecraft:behavior.float": { "priority": 0 },
+      "minecraft:behavior.panic": { "priority": 1, "speed_multiplier": 1.4 },
+      "minecraft:behavior.look_at_player": { "priority": 2, "look_distance": 8, "look_time": 2 },
+      "minecraft:behavior.look_at_target": { "priority": 3 },
+      "minecraft:behavior.random_stroll": { "priority": 4, "speed_multiplier": 0.6 },
+
+      "//": "Trades live in a separate file. The component's only accepted properties are display_name, new_screen, persist_trades and table - there is no inline trade list, so `table` is a *path* to trades/soulkeepers/keeper_trades.json, not a namespaced id.",
+      "minecraft:trade_table": {
+        "table": "trades/soulkeepers/keeper_trades.json",
+        "display_name": "action.soulkeepers.trade",
+        "new_screen": true,
+        "persist_trades": false
+      },
+
+      "minecraft:inventory": {
+        "inventory_size": 8
+      },
+
+      "//": "`interact_text`, `use_item` and `on_interact` are properties of an entry in `interactions`, not of the component itself. Set directly on the component they are silently ignored and the mob has no way to be interacted with at all.",
+      "minecraft:interact": {
+        "interactions": [
+          {
+            "interact_text": "action.soulkeepers.trade",
+            "use_item": false,
+            "on_interact": {
+              "event": "soulkeepers:offer_trade",
+              "target": "self"
+            }
+          }
+        ]
+      },
+
+      "minecraft:damage_sensor": {
+        "triggers": [
+          {
+            "on_damage": {
+              "filters": {
+                "any_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "player"
+                  }
+                ]
+              }
+            },
+            "damage_multiplier": 0.5
+          }
+        ]
+      }
+    },
+    "events": {
+      "soulkeepers:offer_trade": {
+        "sequence": [
+          {
+            "set": {
+              "component_groups": ["group.soulkeepers.offering"]
+            }
+          },
+          {
+            "wait": { "duration": 0.5 }
+          },
+          {
+            "remove": {
+              "component_groups": ["group.soulkeepers.offering"]
+            }
+          }
+        ]
+      }
+    },
+    "component_groups": {
+      "group.soulkeepers.offering": {
+        "minecraft:particle_effect": {
+          "events": [
+            {
+              "particle_effect": "soulkeepers:trade_offer"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

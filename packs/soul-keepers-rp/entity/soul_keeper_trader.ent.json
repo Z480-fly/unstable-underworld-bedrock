@@ -1,0 +1,25 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "soulkeepers:soul_keeper_trader",
+      "materials": {
+        "default": "entity_alphatest",
+        "cloak": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/soul_keeper_trader",
+        "cloak": "textures/entity/soul_keeper_cloak"
+      },
+      "geometry": {
+        "default": "geometry.humanoid",
+        "cape": "geometry.player_cape"
+      },
+      "//": "Two controllers, because the cloak is a separate geometry bound to a separate texture. The single controller this used to list could not reference Material.cloak or Texture.cloak at all, so the cloak was declared and then never drawn.",
+      "render_controllers": [
+        "controller.render.soul_keeper_trader",
+        "controller.render.soul_keeper_trader_cloak"
+      ]
+    }
+  }
+}

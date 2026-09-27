@@ -1,0 +1,13 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "soulkeepers:ashen_blaze",
+      "materials": { "default": "entity_alphatest" },
+      "textures": { "default": "textures/entity/ashen_blaze" },
+      "//": "This asked for geometry.blaze, which is the vanilla blaze's box model with its own UV layout - and the texture painted for this mob is laid out on the humanoid rig. The two do not match, so the blaze would have worn the right pixels on the wrong shape. A hand-written .geo.json cannot be validated in this repository and a geometry the game rejects means an invisible mob, so this rides the humanoid rig instead; swapping to a bespoke model later is a one-line change here plus a geometry file.",
+      "geometry": { "default": "geometry.humanoid" },
+      "render_controllers": ["controller.render.ashen_blaze"]
+    }
+  }
+}

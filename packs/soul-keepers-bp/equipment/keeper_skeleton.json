@@ -1,0 +1,28 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:equipment": {
+    "//": "Referenced by soul_keeper_skeleton's minecraft:equipment.table. It did not exist, so the component pointed at nothing. The gear script adds the enchantments on top of this; the point of the table is that the mob is still armed if the script fails to run, which on a phone with a pack import half-working is a real possibility.",
+    "table": [
+      {
+        "slot": "slot.armor.head",
+        "item": "minecraft:netherite_helmet"
+      },
+      {
+        "slot": "slot.armor.torso",
+        "item": "minecraft:netherite_chestplate"
+      },
+      {
+        "slot": "slot.armor.legs",
+        "item": "minecraft:netherite_leggings"
+      },
+      {
+        "slot": "slot.armor.feet",
+        "item": "minecraft:netherite_boots"
+      },
+      {
+        "slot": "slot.weapon.mainhand",
+        "item": "minecraft:bow"
+      }
+    ]
+  }
+}

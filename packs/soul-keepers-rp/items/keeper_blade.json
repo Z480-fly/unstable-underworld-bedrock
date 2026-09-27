@@ -1,0 +1,30 @@
+{
+  "format_version": "1.21.80",
+  "minecraft:item": {
+    "description": {
+      "identifier": "soulkeepers:keeper_blade",
+      "category": "items"
+    },
+    "components": {
+      "minecraft:icon": {
+        "textures": { "default": "soulkeepers:item_blade" }
+      },
+      "minecraft:max_stack_size": { "value": 1 },
+      "minecraft:damage": { "value": 9 },
+      "minecraft:durability": { "max_durability": 2031 },
+      "minecraft:enchantable": {
+        "value": 14,
+        "slot": "sword"
+      },
+      "minecraft:repairable": {
+        "//": "The component takes a `repair_items` *array* of { items, repair_amount } entries. The shape this used to have - a map of item id to { durability, repair_cost } - is not a property of this component and was being dropped silently, so the blade could never actually be repaired.",
+        "repair_items": [
+          {
+            "items": ["minecraft:netherite_ingot"],
+            "repair_amount": 337
+          }
+        ]
+      }
+    }
+  }
+}

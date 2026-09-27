@@ -1,0 +1,16 @@
+{
+  "resource_pack_name": "soulkeepers",
+  "texture_name": "atlas.items",
+  "//": "Both custom items set minecraft:icon to soulkeepers:item_blade / item_helm. Those keys have to be declared here or the icon resolves to nothing and the item shows as a missing texture - which is a second, separate way for this pack to have looked broken even with the PNGs present.",
+  "texture_data": {
+    "soulkeepers:item_blade": {
+      "textures": "textures/items/keeper_blade"
+    },
+    "soulkeepers:item_helm": {
+      "textures": "textures/items/keeper_helm"
+    },
+    "soulkeepers:item_wither_skull": {
+      "textures": "textures/items/wither_skull"
+    }
+  }
+}

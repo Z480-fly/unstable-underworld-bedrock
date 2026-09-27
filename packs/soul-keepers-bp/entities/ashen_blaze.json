@@ -1,0 +1,86 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "soulkeepers:ashen_blaze",
+      "is_spawnable": true,
+      "is_summonable": true
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": ["soul_keeper", "blaze", "monster", "undead"]
+      },
+      "minecraft:health": { "value": 40, "max": 40 },
+      "minecraft:collision_box": { "width": 0.6, "height": 1.8 },
+      "minecraft:pushable": {
+        "is_pushable": true,
+        "is_pushable_by_piston": true,
+        "pushable_by_player": true
+      },
+      "minecraft:push_through": { "value": 1.0 },
+      "minecraft:physics": {},
+      "minecraft:movement": { "value": 0.22 },
+      "minecraft:navigation": {
+        "can_path_over_water": true,
+        "can_swim": true,
+        "can_pass_doors": true,
+        "can_open_doors": true
+      },
+      "minecraft:underwater_movement": {},
+      "minecraft:behavior.float": { "priority": 0 },
+      "minecraft:behavior.hurt_by_target": { "priority": 1 },
+      "minecraft:behavior.nearest_attackable_target": {
+        "priority": 2,
+        "must_see": false,
+        "must_reach": false,
+        "within_radius": 24.0,
+        "entity_types": [
+          {
+            "filters": {
+              "any_of": [
+                { "test": "is_family", "subject": "other", "value": "player" },
+                { "test": "is_family", "subject": "other", "value": "mob" }
+              ]
+            }
+          }
+        ]
+      },
+      "minecraft:behavior.look_at_player": { "priority": 3, "look_distance": 24, "look_time": 2 },
+      "minecraft:behavior.look_at_target": { "priority": 4 },
+
+      "//": "This is the mob the pack's whole reputation rests on and it never worked. `minecraft:behavior.shoot` is not a component - it is absent from the entity schema entirely - so the old file asked the engine to run a goal that does not exist, and the blaze shot nothing at all. The real wiring is `minecraft:shooter`, which names the projectile, plus `minecraft:behavior.ranged_attack`, which does the firing.",
+      "minecraft:shooter": {
+        "projectiles": ["soulkeepers:wither_skull"],
+        "sound": "mob.wither.shoot"
+      },
+      "minecraft:behavior.ranged_attack": {
+        "priority": 5,
+        "burst_shots": 2,
+        "burst_interval": 0.4,
+        "attack_interval": 20,
+        "attack_radius": 18.0,
+        "attack_radius_min": 2.0,
+        "charge_shoot_trigger": 0.6,
+        "charge_charged_trigger": 0.5,
+        "target_in_sight_time": 0.5,
+        "speed_multiplier": 0.5
+      },
+
+      "//": "A melee fallback on purpose. A custom projectile entity needs the Custom Projectiles experimental toggle, and a pack imported on a phone is exactly the situation where that toggle is *not* on. Without this the blaze would float there harmlessly; with it, it is still a threat and the wither skulls are the reward for having the toggle.",
+      "minecraft:behavior.melee_attack": {
+        "priority": 6,
+        "speed_multiplier": 1.0,
+        "track_target": true,
+        "attack_types": ["hurt"],
+        "reach_multiplier": 1.2,
+        "cooldown_time": 1.0,
+        "max_dist": 2
+      },
+
+      "minecraft:behavior.random_stroll": { "priority": 7, "speed_multiplier": 0.5 },
+      "minecraft:loot": {
+        "table": "loot_tables/ashen_blaze.json"
+      }
+    }
+  }
+}

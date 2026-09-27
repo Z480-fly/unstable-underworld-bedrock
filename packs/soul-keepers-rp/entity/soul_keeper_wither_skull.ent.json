@@ -1,0 +1,25 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "soulkeepers:wither_skull",
+      "//": "The projectile had a behaviour-pack entity and no resource-pack one at all, so even once it was being fired there was nothing to draw. It is a flat sprite, so it uses the item_sprite geometry and a billboard animation to face the camera - the same shape the official custom-projectiles walkthrough uses.",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/items/wither_skull"
+      },
+      "geometry": {
+        "default": "geometry.item_sprite"
+      },
+      "render_controllers": ["controller.render.soul_keeper_wither_skull"],
+      "animations": {
+        "flying": "animation.soulkeepers.projectile.billboard"
+      },
+      "scripts": {
+        "animate": ["flying"]
+      }
+    }
+  }
+}

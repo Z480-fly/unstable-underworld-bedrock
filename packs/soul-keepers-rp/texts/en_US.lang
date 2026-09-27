@@ -1,0 +1,19 @@
+## Soul Keepers
+pack.name=Soul Keepers
+pack.description=The Soul Keepers of the Underworld.
+action.soulkeepers.trade=Trade with the Soul Keeper
+item.soulkeepers:keeper_blade.name=Soul Keeper Blade
+item.soulkeepers:keeper_blade.name_destroyed=Soul Keeper Blade
+item.soulkeepers:keeper_helm.name=Soul Keeper Helm
+item.soulkeepers:keeper_helm.name_destroyed=Soul Keeper Helm
+entity.soulkeepers:soul_keeper_trader.name=Soul Keeper
+entity.soulkeepers:soul_keeper_trader.description=A wandering trader gone wrong, green as infection under a dark Soul Keeper cloak.
+entity.soulkeepers:soul_keeper_skeleton.name=Soul Keeper Archer
+entity.soulkeepers:soul_keeper_skeleton.description=Netherite-armoured, sets your furniture alight.
+entity.soulkeepers:soul_keeper_zombie.name=Soul Keeper Bruiser
+entity.soulkeepers:soul_keeper_zombie.description=It hits you and then it sets you alight.
+entity.soulkeepers:ashen_blaze.name=Ashen Blaze
+entity.soulkeepers:ashen_blaze.description=Fires wither skulls. Do not stand still.
+entity.soulkeepers:wither_skull.name=Soul Keeper Wither Skull
+item.soulkeepers:keeper_blade.description=An infected blade, kept sharp.
+item.soulkeepers:keeper_helm.description=A helm taken from something that used to need it.

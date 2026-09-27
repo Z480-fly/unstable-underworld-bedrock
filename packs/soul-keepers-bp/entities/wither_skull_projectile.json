@@ -1,0 +1,51 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "soulkeepers:wither_skull",
+      "is_spawnable": false,
+      "is_summonable": true
+    },
+    "components": {
+      "minecraft:type_family": { "family": ["wither_skull", "projectile"] },
+      "minecraft:collision_box": { "width": 0.5, "height": 0.5 },
+      "minecraft:projectile": {
+        "on_hit": {
+          "impact_damage": {
+            "damage": 6,
+            "knockback": true,
+            "semi_random_diff_damage": false,
+            "destroy_on_hit": true
+          },
+          "definition_event": {
+            "affect_projectile": true,
+            "event_trigger": {
+              "event": "minecraft:wither_on_hit",
+              "target": "self"
+            }
+          },
+          "particle_on_hit": {
+            "particle_type": "wither_smoke",
+            "num_particles": 8
+          },
+          "sound_on_hit": {
+            "event": "random.explode",
+            "volume": 0.6,
+            "pitch": 0.7
+          }
+        },
+        "power": 1.2,
+        "gravity": 0.03,
+        "liquid_inertia": 0.6,
+        "uncertainty_base": 1.0,
+        "anchor": 1,
+        "offset": [0, -0.5, 0],
+        "should_bounce": false,
+        "reflect_on_hurt": true,
+        "hit_sound": "wither.hurt"
+      },
+      "minecraft:physics": {},
+      "minecraft:pushable": { "is_pushable": false }
+    }
+  }
+}
