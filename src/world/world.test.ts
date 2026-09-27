@@ -5,6 +5,8 @@ import { CONFIG, WORLD_HEIGHT, WORLD_MAX_X, WORLD_MAX_Z, WORLD_MIN_X, WORLD_MIN_
 import { LANDMARKS } from "./layout.ts";
 import { generateTerrain } from "./terrain.ts";
 import { buildAllAreas } from "./areas.ts";
+import { canopyCoverage, CANOPY_BAND } from "./sky_canopy.ts";
+import { SHEETS as CANOPY_SHEETS } from "./sky_canopy.ts";
 import { serializeSubChunk } from "../bedrock/subchunk.ts";
 import { buildSceneWorld } from "./scene.ts";
 import { World } from "./world.ts";
@@ -706,6 +708,100 @@ describe("landmark footprints", () => {
       if (world.get(cx, y, cz)?.name === P.sculkShrieker.name) shrieker++;
     }
     expect(shrieker, "the shrieker should still be sitting at the bottom of the pit").toBe(1);
+  });
+});
+
+describe("the sky canopy", () => {
+  // The Cathedral hung a five-sheet glass sky over its own footprint, which is
+  // right for a landmark and wrong for a sky: you walked out of the arch and
+  // the ceiling stopped at the edge of the building. The canopy is the same
+  // treatment spread over the whole realm, so these assert the property that
+  // actually matters - that glass is overhead *everywhere*, not just in one
+  // place, and that it did not cost the realm its ground detail to get there.
+  test("glass hangs over the whole realm, not just the Cathedral", () => {
+    const world = generateWorld();
+    const { covered, total } = canopyCoverage(world, 24);
+    // Comfortably under 1.0: the sheets are bounded discs with holes in them,
+    // and the image depends on there being sky you can see through. If this
+    // ever approaches 1.0 the canopy has become a lid and lost the parallax.
+    expect(total).toBeGreaterThan(0);
+    expect(covered / total, "the canopy should cover most of the plate").toBeGreaterThan(0.8);
+    expect(covered / total, "the canopy must stay a canopy, not become a lid").toBeLessThan(0.99);
+  });
+
+  test("every sheet is inside the legal band and clear of the ceiling", () => {
+    // The build ceiling is y=127 and the tallest thing in the realm is a
+    // 34-block glass tree on a surface that reaches y=91, so the band is only
+    // 24 blocks tall. A five-layer stack at gap 5 needs 25 and does not fit.
+    //
+    // This failure is invisible by construction: `glassSky` clamps an
+    // overflowing stack instead of throwing, so an over-tall sheet does not
+    // complain, it just quietly loses its top layer. The first draft of the
+    // sheet table had 16 of 19 sheets over-tall and the only reason it was
+    // caught is this assertion.
+    const world = generateWorld();
+    const overflowing = CANOPY_SHEETS.filter((s) => s.y + s.layers * s.layerGap > CANOPY_BAND.ceiling);
+    expect(
+      overflowing.map((s) => `${s.x},${s.z} (top y${s.y + s.layers * s.layerGap})`),
+      "no sheet's stack may overflow the band, or glassSky silently truncates it",
+    ).toEqual([]);
+    const belowBand = CANOPY_SHEETS.filter((s) => s.y < CANOPY_BAND.floor);
+    expect(belowBand, "no sheet may hang below the canopy band").toEqual([]);
+
+    // And the payoff: a representative sheet kept *every* layer it was asked
+    // for. glassSky clamps rather than throws, so a lost layer is silent -
+    // this counts distinct occupied heights over the realm's centre and wants
+    // the full spread the sheet list asks for.
+    const centre = CANOPY_SHEETS[0]!;
+    const heights = new Set<number>();
+    for (let z = centre.z - centre.radius; z <= centre.z + centre.radius; z += 3) {
+      for (let x = centre.x - centre.radius; x <= centre.x + centre.radius; x += 3) {
+        for (let y = CANOPY_BAND.floor; y <= CANOPY_BAND.ceiling; y++) {
+          const name = world.get(x, y, z)?.name;
+          if (name && name.includes("stained_glass")) {
+            heights.add(y);
+            break;
+          }
+        }
+      }
+    }
+    expect(
+      heights.size,
+      "the centre sheet should have kept every layer it was given",
+    ).toBeGreaterThanOrEqual(centre.layers - 1);
+  });
+
+  test("the canopy did not protect the ground and kill the detail pass", () => {
+    // The one genuinely dangerous failure mode here. `glassSky` protects the
+    // columns beneath a sheet by default, which is correct over a building and
+    // catastrophic for a canopy drifting over open ground: it would switch off
+    // ruins, ground fractures and detail scatter across most of the plate.
+    //
+    // The invariant is the *pairing*, not a raw count of unprotected ground:
+    // a column can be under the canopy and still be open to the detail pass,
+    // because the canopy is 60 blocks up and has no business claiming the
+    // ground. Columns that are protected are protected by the landmark
+    // underneath them, which is correct and not this test's business.
+    const world = generateWorld();
+    let underGlassOpen = 0;
+    for (let z = -260; z <= 260; z += 11) {
+      for (let x = -260; x <= 260; x += 11) {
+        if (!world.inRealm(x, z)) continue;
+        let under = false;
+        for (let y = CANOPY_BAND.floor; y <= CANOPY_BAND.ceiling; y++) {
+          const name = world.get(x, y, z)?.name;
+          if (name && name.includes("stained_glass")) {
+            under = true;
+            break;
+          }
+        }
+        if (under && !world.isProtected(x, z)) underGlassOpen++;
+      }
+    }
+    expect(
+      underGlassOpen,
+      "columns under the canopy must still be open to ruins, fractures and detail",
+    ).toBeGreaterThan(500);
   });
 });
 

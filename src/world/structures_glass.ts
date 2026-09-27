@@ -194,6 +194,17 @@ export function glassSky(
     underGlass?: BlockState[];
     frondChance?: number;
     seed?: number;
+    /**
+     * Protect the columns under the sheets from the terrain-decay passes.
+     *
+     * True is right for a sheet hung over a *landmark*: the cathedral's sky
+     * sits on top of a building, and the detail pass must not reach under it.
+     * False is required for the realm-wide canopy, which drifts over open
+     * ground: protecting every column it passes over would switch off ruins,
+     * fractures and detail scatter across most of the plate, quietly gutting
+     * the whole wasteland for the sake of a sky that is 60 blocks up.
+     */
+    protectGround?: boolean;
   } = {},
 ): void {
   const layers = opts.layers ?? 5;
@@ -248,7 +259,7 @@ export function glassSky(
       }
     }
   }
-  world.protect(cx, cz, radius + 2);
+  if (opts.protectGround ?? true) world.protect(cx, cz, radius + 2);
 }
 
 /**

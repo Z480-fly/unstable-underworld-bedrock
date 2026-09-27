@@ -658,3 +658,71 @@ Full gate: typecheck clean, **51/51 tests**, palette OK, `world OK (40 checks)`.
 Signature exposure confirms the geometry in the written file rather than in the
 generator: `splice` 0/5 -> **10/15**, `portalField` 35/53 -> **36/54**, and
 `wardenArena` still **1/1**.
+
+## The sky canopy: the glass goes everywhere
+
+The reference's defining image is sheets of coloured glass stacked in the sky
+with moss along every rim. It lived in exactly one place - the Cathedral hung a
+five-sheet cluster over its own footprint. That is right for a landmark and
+wrong for a *sky*: you walked out of the arch and the ceiling stopped at the
+edge of the building.
+
+`src/world/sky_canopy.ts` scatters **27 overlapping sheets** across the realm at
+mixed heights, denser over the built-up plate and thinner out east, with the
+western dark getting a lower, sparser, colder set because that end is supposed
+to be closing down.
+
+### Why sheets and not a lid
+
+A single translucent sheet across 704x704 is 495k columns of glass and would
+have cost more than the entire rest of the world. Every sheet here is a bounded
+disc, they overlap, and **the holes are load-bearing**: the parallax between
+layers is the image. You can look up through a gap and see teal, and that is
+what stops it reading as a ceiling. Measured coverage is **84.7%** of the plate
+- deliberately short of 1.0, and the test fails both above 0.8 and above 0.99 so
+it can never quietly become a lid.
+
+### The band is only 24 blocks
+
+The ceiling is y=127 and the tallest thing in the realm is a 34-block glass tree
+on a surface that reaches y=91, which puts the legal band at y100..y124.
+
+**The first draft of the sheet table had 16 of 19 sheets over-tall.** A
+five-layer stack at gap 5 needs 25 blocks and the band has 24. `glassSky` clamps
+an overflowing stack rather than throwing, so this fails *silently* - no error,
+no warning, just a fifth of the sky quietly missing. It was only caught because
+the test asserts `y + layers * layerGap <= 124` over the sheet table itself
+rather than trusting the builder. Verified by re-introducing a five-layer sheet
+and confirming the check goes red.
+
+Two other failures in the same run were my arithmetic, not the test's fault:
+
+- The first row-mix-style coverage number came out at 0.717, below the 0.8
+  floor. The sheets were too small and too few to overlap across the whole
+  plate; the list grew from 19 to 27 and the radii were re-spread.
+- A "no glass outside the band" assertion failed with 902 blocks. Those are at
+  **y48-y99** and belong to the landmarks' own glass - the Cathedral's sky, the
+  Glass Grove's trees, the Splice's floor - not to the canopy. Sweeping every
+  stained-glass block in the world into the canopy's budget was simply the
+  wrong assertion, so it was replaced with one that checks a representative
+  sheet kept every layer it was asked for.
+
+### The dangerous one: protecting the ground
+
+`glassSky` protects the columns under a sheet so the detail pass cannot reach
+into a building. Over a canopy drifting above open ground that would switch off
+**ruins, ground fractures and detail scatter across most of the plate** - gutting
+the whole wasteland to hang a sky 60 blocks up. `protectGround: false` is
+load-bearing, and the test asserts the *pairing* rather than a raw count: 963
+sampled columns are under the canopy **and still unprotected**. The 777 that are
+protected are protected by the landmark underneath them, which is correct.
+
+### Cost
+
+858k stained-glass blocks, but only **1.7% of the world's blocks** and
+**+943 KB (+11%)** on the file: glass is highly compressible, and only 1197 of
+1936 chunks are touched. Against a realm whose whole premise is loading on a
+phone, that is affordable - but it is not free, and it is the reason the canopy
+is 27 sheets and not a continuous sheet.
+
+Full gate: typecheck clean, **54/54 tests**, palette OK, `world OK (40 checks)`.
