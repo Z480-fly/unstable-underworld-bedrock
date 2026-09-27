@@ -562,5 +562,50 @@ export function roseWindow(
   }
 }
 
+/**
+ * Ritual split table: crafting_table | portal slice | enchanting_table
+ * framed in blackstone/deepslate. Pure vanilla. Zero pack dependency.
+ * Footprint ~3x2x1. Safe for LevelDB export.
+ *
+ * The single minecraft:portal block acts as a glowing vertical "slice"
+ * between the two tables so the piece reads as one split ritual object.
+ */
+export function splitTable(
+  world: World,
+  cx: number,
+  cz: number,
+  baseY: number,
+  alongX = true,
+  style: BuildStyle = BLACKSTONE_STYLE,
+): void {
+  // floor / base pad
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      world.set(cx + dx, baseY, cz + dz, style.floor);
+      world.protect(cx + dx, cz + dz);
+    }
+  }
+
+  // left table, portal slice, right table
+  if (alongX) {
+    world.set(cx - 1, baseY + 1, cz, P.craftingTable);
+    world.set(cx,     baseY + 1, cz, P.portal);
+    world.set(cx + 1, baseY + 1, cz, P.enchantingTable);
+  } else {
+    world.set(cx, baseY + 1, cz - 1, P.craftingTable);
+    world.set(cx, baseY + 1, cz,     P.portal);
+    world.set(cx, baseY + 1, cz + 1, P.enchantingTable);
+  }
+
+  // simple frame pillars at the four corners
+  for (const [ox, oz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]] as const) {
+    world.set(cx + ox, baseY + 1, cz + oz, style.accent);
+    world.set(cx + ox, baseY + 2, cz + oz, style.trim);
+  }
+
+  // optional light above the slice
+  world.set(cx, baseY + 2, cz, style.light);
+}
+
 export { endGatewayMarker, endPortalPlatform, glassEyeSpire, eyeOculus, hybridPortal } from "./structures_end.ts";
 export { shopInterior } from "./structures_interior.ts";
