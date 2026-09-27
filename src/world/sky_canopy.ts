@@ -21,10 +21,14 @@
  *    between layers *is* the image. You should be able to look straight up
  *    through a gap and see teal, and that is what stops it reading as a ceiling.
  *
- * 2. **Height.** The tallest thing in the realm is a 34-block glass tree on a
- *    surface that reaches y=91, and the ceiling is y=127. Sheets therefore sit
- *    between y=100 and y=124: high enough to clear every landmark including the
- *    Cathedral's own taller stack, low enough that a 5-layer drift still fits.
+ * 2. **Height.** The band is y=92 to y=116. It started at y=100..y124, which
+ *    clears every landmark, and it was wrong: at the lowest render distance -
+ *    the setting a phone actually runs at - a ceiling eight blocks further up
+ *    is the first thing that falls off the far end of the view, so the sky read
+ *    as "hard to see" exactly where it was most supposed to be pretty. The band
+ *    is eight blocks lower now, at the cost of drifting through the crowns of
+ *    the glass trees and the Glassworks spires, which the reference does
+ *    anyway - a sheet that passes behind a spire is what parallax looks like.
  *
  * 3. **It must not protect the ground.** `glassSky` protects the columns under
  *    a sheet by default, which is correct over a building and catastrophic
@@ -37,10 +41,16 @@ import { hash2 } from "./noise.ts";
 import { glassSky } from "./structures_glass.ts";
 import type { World } from "./world.ts";
 
-/** Lowest a sheet is ever hung. Clears the 34-block glass trees on a y=91 surface. */
-const SHEET_FLOOR = 100;
+/**
+ * Lowest a sheet is ever hung.
+ *
+ * The realm's ground tops out at y=91, so a sheet at 92 is one block above the
+ * highest terrain in the world. That is the point: the band is set by what a
+ * player can *see*, not by what clears the skyline.
+ */
+const SHEET_FLOOR = 92;
 /** Highest a sheet's top layer may reach. The build ceiling is y=127. */
-const SHEET_CEILING = 124;
+const SHEET_CEILING = 116;
 
 /** The violet-to-cyan sheets the reference hangs, and the green set it accents with. */
 const COOL: BlockState[] = [P.purpleGlass, P.blueGlass, P.lightBlueGlass, P.cyanGlass, P.magentaGlass];
@@ -77,8 +87,8 @@ export type { Sheet };
  * The drift, hand-placed so the realm reads as a composed sky rather than a
  * scatter.
  *
- * **Every stack must fit the band.** The band is y100..y124, which is 24
- * blocks, so `layers * layerGap` may not exceed `124 - y`. Four layers at gap 5
+ * **Every stack must fit the band.** The band is y92..y116, which is 24
+ * blocks, so `layers * layerGap` may not exceed `116 - y`. Four layers at gap 5
  * is 20 and fits; five is 25 and does not. `glassSky` clamps an overflowing
  * stack rather than failing, so an over-tall sheet does not announce itself -
  * it just quietly loses its top layer, and a fifth of the sky you designed goes
@@ -90,35 +100,35 @@ export type { Sheet };
  */
 export const SHEETS: readonly Sheet[] = [
   // --- the main plate ------------------------------------------------------
-  { x: 0, z: 0, y: 100, radius: 112, layers: 4, layerGap: 5, hue: 0, w: 1.15, frond: 0.16 },
-  { x: -78, z: 52, y: 101, radius: 86, layers: 4, layerGap: 5, hue: 3, w: 1, frond: 0.14 },
-  { x: 86, z: -40, y: 103, radius: 94, layers: 4, layerGap: 5, hue: 1, w: 1.05, frond: 0.15 },
-  { x: 24, z: 128, y: 100, radius: 90, layers: 4, layerGap: 6, hue: 2, w: 1.1, frond: 0.17 },
-  { x: -120, z: -96, y: 102, radius: 78, layers: 3, layerGap: 7, hue: 3, w: 0.95, frond: 0.13 },
-  { x: 132, z: 96, y: 100, radius: 82, layers: 4, layerGap: 6, hue: 0, w: 1, frond: 0.15 },
-  { x: -40, z: -160, y: 103, radius: 74, layers: 3, layerGap: 7, hue: 3, w: 0.9, frond: 0.12 },
-  { x: 62, z: -186, y: 101, radius: 70, layers: 4, layerGap: 5, hue: 2, w: 0.95, frond: 0.16 },
-  { x: 168, z: 30, y: 103, radius: 66, layers: 3, layerGap: 7, hue: 1, w: 0.9, frond: 0.12 },
-  { x: -196, z: 84, y: 101, radius: 72, layers: 4, layerGap: 5, hue: 0, w: 0.95, frond: 0.13 },
-  { x: -8, z: -70, y: 104, radius: 78, layers: 3, layerGap: 6, hue: 1, w: 1, frond: 0.14 },
+  { x: 0, z: 0, y: 92, radius: 112, layers: 4, layerGap: 5, hue: 0, w: 1.15, frond: 0.16 },
+  { x: -78, z: 52, y: 93, radius: 86, layers: 4, layerGap: 5, hue: 3, w: 1, frond: 0.14 },
+  { x: 86, z: -40, y: 95, radius: 94, layers: 4, layerGap: 5, hue: 1, w: 1.05, frond: 0.15 },
+  { x: 24, z: 128, y: 92, radius: 90, layers: 4, layerGap: 6, hue: 2, w: 1.1, frond: 0.17 },
+  { x: -120, z: -96, y: 94, radius: 78, layers: 3, layerGap: 7, hue: 3, w: 0.95, frond: 0.13 },
+  { x: 132, z: 96, y: 92, radius: 82, layers: 4, layerGap: 6, hue: 0, w: 1, frond: 0.15 },
+  { x: -40, z: -160, y: 95, radius: 74, layers: 3, layerGap: 7, hue: 3, w: 0.9, frond: 0.12 },
+  { x: 62, z: -186, y: 93, radius: 70, layers: 4, layerGap: 5, hue: 2, w: 0.95, frond: 0.16 },
+  { x: 168, z: 30, y: 95, radius: 66, layers: 3, layerGap: 7, hue: 1, w: 0.9, frond: 0.12 },
+  { x: -196, z: 84, y: 93, radius: 72, layers: 4, layerGap: 5, hue: 0, w: 0.95, frond: 0.13 },
+  { x: -8, z: -70, y: 96, radius: 78, layers: 3, layerGap: 6, hue: 1, w: 1, frond: 0.14 },
 
   // --- east and south: the Gate Field, the Glassworks, the Sunken City ------
-  { x: 252, z: -116, y: 100, radius: 88, layers: 4, layerGap: 6, hue: 1, w: 1, frond: 0.13 },
-  { x: 188, z: 226, y: 100, radius: 84, layers: 4, layerGap: 5, hue: 2, w: 1.05, frond: 0.18 },
-  { x: 280, z: 290, y: 102, radius: 80, layers: 3, layerGap: 7, hue: 3, w: 1, frond: 0.14 },
-  { x: 196, z: -16, y: 101, radius: 92, layers: 4, layerGap: 5, hue: 0, w: 1.1, frond: 0.15 },
-  { x: -300, z: 300, y: 103, radius: 66, layers: 3, layerGap: 7, hue: 3, w: 0.85, frond: 0.11 },
-  { x: 60, z: -232, y: 100, radius: 76, layers: 4, layerGap: 6, hue: 2, w: 0.95, frond: 0.17 },
-  { x: 226, z: 120, y: 103, radius: 74, layers: 3, layerGap: 6, hue: 1, w: 0.95, frond: 0.13 },
-  { x: 128, z: -238, y: 102, radius: 70, layers: 3, layerGap: 7, hue: 0, w: 0.9, frond: 0.12 },
+  { x: 252, z: -116, y: 92, radius: 88, layers: 4, layerGap: 6, hue: 1, w: 1, frond: 0.13 },
+  { x: 188, z: 226, y: 92, radius: 84, layers: 4, layerGap: 5, hue: 2, w: 1.05, frond: 0.18 },
+  { x: 280, z: 290, y: 94, radius: 80, layers: 3, layerGap: 7, hue: 3, w: 1, frond: 0.14 },
+  { x: 196, z: -16, y: 93, radius: 92, layers: 4, layerGap: 5, hue: 0, w: 1.1, frond: 0.15 },
+  { x: -300, z: 300, y: 95, radius: 66, layers: 3, layerGap: 7, hue: 3, w: 0.85, frond: 0.11 },
+  { x: 60, z: -232, y: 92, radius: 76, layers: 4, layerGap: 6, hue: 2, w: 0.95, frond: 0.17 },
+  { x: 226, z: 120, y: 95, radius: 74, layers: 3, layerGap: 6, hue: 1, w: 0.95, frond: 0.13 },
+  { x: 128, z: -238, y: 94, radius: 70, layers: 3, layerGap: 7, hue: 0, w: 0.9, frond: 0.12 },
 
   // --- the western dark, where the sky closes down -------------------------
-  { x: -246, z: -170, y: 101, radius: 72, layers: 3, layerGap: 6, hue: 3, w: 0.9, frond: 0.09 },
-  { x: -158, z: 140, y: 102, radius: 76, layers: 3, layerGap: 7, hue: 3, w: 0.95, frond: 0.1 },
-  { x: -140, z: -180, y: 100, radius: 88, layers: 4, layerGap: 6, hue: 2, w: 1, frond: 0.14 },
-  { x: -100, z: 30, y: 103, radius: 68, layers: 3, layerGap: 6, hue: 3, w: 0.85, frond: 0.1 },
-  { x: -286, z: 62, y: 101, radius: 66, layers: 3, layerGap: 7, hue: 3, w: 0.85, frond: 0.09 },
-  { x: -60, z: 232, y: 100, radius: 72, layers: 4, layerGap: 6, hue: 2, w: 0.95, frond: 0.14 },
+  { x: -246, z: -170, y: 93, radius: 72, layers: 3, layerGap: 6, hue: 3, w: 0.9, frond: 0.09 },
+  { x: -158, z: 140, y: 94, radius: 76, layers: 3, layerGap: 7, hue: 3, w: 0.95, frond: 0.1 },
+  { x: -140, z: -180, y: 92, radius: 88, layers: 4, layerGap: 6, hue: 2, w: 1, frond: 0.14 },
+  { x: -100, z: 30, y: 95, radius: 68, layers: 3, layerGap: 6, hue: 3, w: 0.85, frond: 0.1 },
+  { x: -286, z: 62, y: 93, radius: 66, layers: 3, layerGap: 7, hue: 3, w: 0.85, frond: 0.09 },
+  { x: -60, z: 232, y: 92, radius: 72, layers: 4, layerGap: 6, hue: 2, w: 0.95, frond: 0.14 },
 ];
 
 const PALETTES: BlockState[][] = [COOL, WARM, SOUL, DEEP];
@@ -151,6 +161,9 @@ export function buildSkyCanopy(world: World): void {
       // See the header: protecting the ground here would gut the detail pass
       // across most of the plate.
       protectGround: false,
+      // The canopy's band is lower than the one the hand-placed landmark skies
+      // were tuned against, so it has to say which ceiling it means.
+      ceiling: SHEET_CEILING,
     });
   }
 }

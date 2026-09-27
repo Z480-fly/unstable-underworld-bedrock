@@ -615,6 +615,147 @@ describe("the Sunken City and the Warden's Deep Dark", () => {
   });
 });
 
+describe("the Sunken City's glazing", () => {
+  // The city used to be deepslate from the plate up, which on a phone read as
+  // a grey slab in the middle of the most colour-saturated map in the
+  // Underworld. The fix faces the world with glass instead - and the whole
+  // reason that fix is safe is the pair of assertions at the bottom of this
+  // block: the Warden's pit is *not* glazed. Bright glass only reads as bright
+  // next to something that stayed dark.
+  const LEVEL = 44;
+  const PLATE = { x1: 234, z1: 250, x2: 326, z2: 330 };
+  /** The Warden's pit under the city's middle. */
+  const PIT = { x: 282, z: 292, radius: 21 };
+
+  const countIn = (world: World, x1: number, z1: number, x2: number, z2: number, y1: number, y2: number, match: (name: string) => boolean): number => {
+    let n = 0;
+    for (let z = z1; z <= z2; z++) {
+      for (let x = x1; x <= x2; x++) {
+        for (let y = y1; y <= y2; y++) {
+          const name = world.get(x, y, z)?.name;
+          if (name && match(name)) n++;
+        }
+      }
+    }
+    return n;
+  };
+  const isGlass = (name: string): boolean => name.includes("stained_glass");
+  const isDeepslate = (name: string): boolean => name.includes("deepslate");
+
+  test("the plate's outer face is a glazed foundation, not a wall of rock", () => {
+    const world = generateWorld();
+    // Only the perimeter columns, and only the band the player sees from the
+    // void ring: level-10 to level.
+    let glass = 0;
+    let rock = 0;
+    for (let z = PLATE.z1; z <= PLATE.z2; z++) {
+      for (let x = PLATE.x1; x <= PLATE.x2; x++) {
+        const onRim = x === PLATE.x1 || x === PLATE.x2 || z === PLATE.z1 || z === PLATE.z2;
+        if (!onRim) continue;
+        for (let y = LEVEL - 10; y <= LEVEL; y++) {
+          const name = world.get(x, y, z)?.name;
+          if (!name) continue;
+          if (isGlass(name)) glass++;
+          else if (isDeepslate(name)) rock++;
+        }
+      }
+    }
+    expect(glass, "the city's outward face should be mostly glazing").toBeGreaterThan(1500);
+    // The mullions and the cornice are deepslate on purpose, so this is a
+    // "most of it", not a "all of it". If deepslate ever wins this is the
+    // assertion that says the rim went back to being a rock face.
+    expect(glass, "glazing should outnumber the deepslate framing on the rim").toBeGreaterThan(rock);
+  });
+
+  test("the plaza is paved in glass inlay rather than plain cobble", () => {
+    const world = generateWorld();
+    // A diagonal inlay every 7 blocks, over the whole plate top.
+    const glass = countIn(world, PLATE.x1, PLATE.z1, PLATE.x2, PLATE.z2, LEVEL, LEVEL, isGlass);
+    expect(glass, "the plate top should be inlaid with glass, not left as bare cobble").toBeGreaterThan(500);
+  });
+
+  test("each hall has a glazed vault, a glazed band and an eye in the end wall", () => {
+    const world = generateWorld();
+    const { x: cx, z: cz } = LANDMARKS.ancientCity.center;
+    const halls: Array<[number, number, number, number]> = [
+      [cx - 34, cz - 30, cx - 12, cz - 6],
+      [cx - 6, cz - 32, cx + 20, cz - 8],
+      [cx - 28, cz + 8, cx + 4, cz + 30],
+    ];
+    for (const [x1, z1, x2, z2] of halls) {
+      // the vault is one course at level+7; it should be mostly glass
+      const vault = countIn(world, x1, z1, x2, z2, LEVEL + 7, LEVEL + 7, isGlass);
+      expect(vault, `the hall at ${x1},${z1} should have a glazed vault`).toBeGreaterThan(150);
+      // ...and the wall band at level+4..6. A quarter of the band is mullion
+      // and a quarter is structural rib, so this is "most of the band", not
+      // "all of it" - the deepslate is what keeps it reading as Ancient City.
+      const band = countIn(world, x1, z1, x2, z2, LEVEL + 4, LEVEL + 6, isGlass);
+      expect(band, `the hall at ${x1},${z1} should have a glazed wall band`).toBeGreaterThan(60);
+      // ...and the eye, whose pupil is black glass dead centre of the end wall
+      const pupil = world.get(x1, LEVEL + 4, Math.round((z1 + z2) / 2))?.name;
+      expect(pupil, `the hall at ${x1},${z1} should have an eye window in its end wall`).toBe(
+        P.blackGlass.name,
+      );
+    }
+  });
+
+  test("the spine corridor is a glazed avenue, not an 80-block tunnel", () => {
+    const world = generateWorld();
+    const { x: cx, z: cz } = LANDMARKS.ancientCity.center;
+    // The roof course of the corridor, along its whole length.
+    const glass = countIn(world, cx - 40, cz - 1, cx + 40, cz + 1, LEVEL + 6, LEVEL + 6, isGlass);
+    expect(glass, "the spine's vault should be glazed along its length").toBeGreaterThan(100);
+  });
+
+  test("NEGATIVE: the Warden's pit stays dark - the glazing must not reach it", () => {
+    // This is the constraint the whole rework hangs off. If a future pass
+    // widens the plaza inlay or the rim glazing, this is what stops the one
+    // genuinely frightening place in the city from being paved in purple.
+    //
+    // Two details this has to get right, both of which are easy to get wrong:
+    // the bowl is a *disc*, so testing the bounding square counts the four
+    // corners, which are plaza and are supposed to be glazed; and the top of
+    // the range has to stop at level-4, because the plate caps the bowl with
+    // four blocks of rock at level-4..level (see the note in
+    // `probe-city.ts`) and that cap is the plaza surface, not the pit.
+    const world = generateWorld();
+    let glass = 0;
+    for (let dz = -PIT.radius; dz <= PIT.radius; dz++) {
+      for (let dx = -PIT.radius; dx <= PIT.radius; dx++) {
+        if (Math.hypot(dx, dz) > PIT.radius) continue;
+        for (let y = LEVEL - 30; y <= LEVEL - 4; y++) {
+          if (isGlass(world.get(PIT.x + dx, y, PIT.z + dz)?.name ?? "")) glass++;
+        }
+      }
+    }
+    expect(glass, "no glazing may be laid inside the Warden's bowl").toBe(0);
+  });
+
+  test("NEGATIVE: the Warden himself is still down there - pit, sculk and all", () => {
+    const world = generateWorld();
+    const floor = world.surfaceAt(PIT.x, PIT.z);
+    expect(floor, "the pit is still sunk below the city").toBeLessThan(LEVEL - 10);
+    let sculk = 0;
+    let catalyst = 0;
+    for (let dz = -PIT.radius; dz <= PIT.radius; dz++) {
+      for (let dx = -PIT.radius; dx <= PIT.radius; dx++) {
+        if (Math.hypot(dx, dz) > PIT.radius) continue;
+        const s = world.surfaceAt(PIT.x + dx, PIT.z + dz);
+        for (let y = s; y <= s + 1 && y < CONFIG.maxY; y++) {
+          const name = world.get(PIT.x + dx, y, PIT.z + dz)?.name;
+          if (name === P.sculk.name) sculk++;
+          if (name === P.sculkCatalyst.name) catalyst++;
+        }
+      }
+    }
+    expect(sculk, "the bowl's floor must still be spreading with sculk").toBeGreaterThan(100);
+    expect(catalyst, "the bowl's rim must still be ringed with catalyst").toBeGreaterThan(5);
+    expect(world.get(PIT.x, floor, PIT.z)?.name, "the shrieker is still at the bottom").toBe(
+      P.sculkShrieker.name,
+    );
+  });
+});
+
 
 /**
  * The block each landmark is fingerprinted by - one that only it places.
@@ -769,6 +910,21 @@ describe("the sky canopy", () => {
       heights.size,
       "the centre sheet should have kept every layer it was given",
     ).toBeGreaterThanOrEqual(centre.layers - 1);
+  });
+
+  test("the band hangs low enough to read at the lowest render distance", () => {
+    // The band started at y100..y124, which clears every landmark and is
+    // invisible on a phone: at minimum render distance a ceiling eight blocks
+    // higher is the first thing past the far end of the view. It is now
+    // y92..y116 - one block above the highest ground in the realm - and this
+    // is the assertion that keeps it there.
+    expect(CANOPY_BAND.floor, "the canopy should start just above the highest terrain").toBeLessThanOrEqual(96);
+    expect(CANOPY_BAND.ceiling, "the band should still clear the build ceiling").toBeLessThanOrEqual(CONFIG.maxY - 8);
+    const low = CANOPY_SHEETS.filter((s) => s.y <= CANOPY_BAND.floor + 4).length;
+    expect(
+      low,
+      "most sheets should hang in the bottom of the band, not drift up out of sight",
+    ).toBeGreaterThan(CANOPY_SHEETS.length / 2);
   });
 
   test("the canopy did not protect the ground and kill the detail pass", () => {

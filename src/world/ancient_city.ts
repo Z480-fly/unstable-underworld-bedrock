@@ -22,15 +22,134 @@
  * Note there is no "ominous dark" block in Bedrock - that trim is Java-only -
  * so the accent course is polished deepslate, which is the closest real
  * material and passes the palette validator.
+ *
+ * The glazing
+ * -----------
+ * The first pass at this built the city the way an Ancient City is built in
+ * canon: deepslate, top to bottom, for 92x80 blocks. Loaded on a phone it read
+ * as exactly what it is - a large grey slab in a map that is otherwise the most
+ * colour-saturated thing in the Underworld. The fix is not to delete the
+ * deepslate, it is to stop *facing* the world with it:
+ *
+ * - the plate's outer face is now a stained-glass foundation, mullioned like
+ *   glazing rather than coursed like rock;
+ * - the plaza is paved in diagonal glass inlay instead of plain cobble;
+ * - the halls are glazed bands under glazed vaults, with a glass eye in the
+ *   end wall of each, so daylight comes down through the roof;
+ * - the spine corridor is a light-flooded avenue rather than a tunnel.
+ *
+ * What deliberately did *not* change is the Warden. The pit, the bowl, the
+ * sculk, the shrieker, the sensors and the catalyst rim are exactly as dark as
+ * they were - that is the one part of this city the glazing is not allowed to
+ * touch, and the contrast is what makes the glass read as bright.
  */
 import { AIR, P, type BlockState } from "./blocks.ts";
 import { LANDMARKS, type RectRegion } from "./layout.ts";
 import { hash2 } from "./noise.ts";
-import { seaLanternPost } from "./structures_glass.ts";
+import {
+  eyeWindow,
+  glassMosaic,
+  prismAt,
+  prismPillar,
+  seaLanternPost,
+  SOUL_GREEN,
+  VIVID_PRISM,
+} from "./structures_glass.ts";
 import type { World } from "./world.ts";
+
+/** What the city's own glazing is cut from. Loud, because it is the one saturated thing out here. */
+const CITY_GLAZING: BlockState[] = VIVID_PRISM;
+/** The green the Soul Keepers put on structures, reserved for the pit's edge. */
+const PIT_GLAZING: BlockState[] = SOUL_GREEN;
 
 function rect(x1: number, z1: number, x2: number, z2: number): RectRegion {
   return { kind: "rect", x1, z1, x2, z2 };
+}
+
+/**
+ * Glaze the outward face of a plate: the band of blocks you actually see when
+ * you approach the city from the void ring.
+ *
+ * This is the single highest-value change in the file. The plate is solid rock
+ * from y=0 to the city level, and 92x80 of it means the rim is a 44-block wall
+ * of deepslate facing the player on every side. Mullion it every fourth block,
+ * glaze the cells between, and the same wall now reads as a stained-glass
+ * foundation holding the city up out of the dark.
+ */
+function glazePlateRim(world: World, region: RectRegion, level: number, seed: number): void {
+  const lo = level - 10;
+  const onRim = (x: number, z: number): boolean =>
+    (x === region.x1 || x === region.x2) && z >= region.z1 && z <= region.z2
+      ? true
+      : (z === region.z1 || z === region.z2) && x >= region.x1 && x <= region.x2;
+  const run = (x: number, z: number): number => (z === region.z1 || z === region.z2 ? x : z);
+
+  for (let z = region.z1; z <= region.z2; z++) {
+    for (let x = region.x1; x <= region.x2; x++) {
+      if (!onRim(x, z) || !world.inRealm(x, z)) continue;
+      for (let y = lo; y <= level; y++) {
+        // A cornice at the top and a plinth at the bottom, so the glazing is a
+        // course in a frame rather than a stripe painted on rock.
+        if (y === level) {
+          world.set(x, y, z, P.polishedDeepslate);
+          continue;
+        }
+        if (y === lo) {
+          world.set(x, y, z, P.chiseledDeepslate);
+          continue;
+        }
+        if (run(x, z) % 4 === 0) {
+          world.set(x, y, z, P.chiseledDeepslate); // mullion
+          continue;
+        }
+        world.set(x, y, z, prismAt(CITY_GLAZING, x, y, z, seed));
+      }
+      // A lamp every 12 blocks up the face, so the wall lights its own glazing
+      // at night and the city is findable from across the void ring.
+      if (run(x, z) % 12 === 0) {
+        world.set(x, level - 5, z, P.seaLantern);
+        world.set(x, level - 6, z, P.glowstone);
+      }
+    }
+  }
+}
+
+/**
+ * Paving inlay across the plate top: diagonal glass courses through cobble.
+ *
+ * Runs straight after `plate` and before the halls, so the halls and the pit
+ * carve over the top of it and it only survives where the city is walkable.
+ * Glass paving is deliberate - it is what makes the plaza read as the Soul
+ * Keepers' floor rather than as a car park, and light from the pit glows up
+ * through it.
+ */
+function glazePlaza(
+  world: World,
+  region: RectRegion,
+  level: number,
+  pitCx: number,
+  pitCz: number,
+  seed: number,
+): void {
+  for (let z = region.z1; z <= region.z2; z++) {
+    for (let x = region.x1; x <= region.x2; x++) {
+      if (!world.inRealm(x, z)) continue;
+      // Stop at the bowl's lip. Inside that radius the plate is not plaza at
+      // all - it is the roof of the Warden's pit - and glazing stops there.
+      if (Math.hypot(x - pitCx, z - pitCz) < 21) continue;
+      if ((x + z) % 7 !== 0 && (x - z) % 7 !== 0) continue;
+      world.set(x, level, z, prismAt(CITY_GLAZING, x, level, z, seed));
+    }
+  }
+  // a green ring on the paving, one block out from the pit's lip
+  for (let i = 0; i < 220; i++) {
+    const a = (i / 220) * Math.PI * 2;
+    const x = Math.round(pitCx + Math.cos(a) * 23);
+    const z = Math.round(pitCz + Math.sin(a) * 23);
+    if (!world.inRealm(x, z)) continue;
+    if (hash2(x, z, seed) < 0.3) continue; // gaps, so the ring is not a solid line
+    world.set(x, level, z, prismAt(PIT_GLAZING, x, level, z, seed + 3));
+  }
 }
 
 /**
@@ -101,6 +220,12 @@ function sculkPatch(
  * A single Ancient City corridor: deepslate brick floor, a chiseled frame at
  * the mouth, and the dark "ominous" trim the real structure uses to frame its
  * doorways. Returns nothing; writes straight into the world.
+ *
+ * The roof is glazed and the top wall course is a window band, so the spine
+ * reads as a light-flooded avenue running the length of the city rather than
+ * the 80-block tunnel it used to be. Everything at eye level is untouched
+ * deepslate, which is what keeps it reading as Ancient City and not as a
+ * Glassworks aisle.
  */
 function corridor(
   world: World,
@@ -130,9 +255,28 @@ function corridor(
       const bx = alongX ? t : (alongX ? x1 : t) + w;
       const bz = alongX ? (alongX ? z1 : t) + w : t;
       world.set(bx, floorY, bz, P.crackedDeepslateBricks);
-      world.set(bx, floorY + height, bz, P.deepslateBricks);
+      // glazed vault: a deepslate mullion every fourth bay, glass between, and
+      // a lamp every eighth so the avenue is lit along its whole length
+      world.set(
+        bx,
+        floorY + height,
+        bz,
+        t % 4 === 0 ? P.deepslateBricks : prismAt(CITY_GLAZING, bx, floorY + height, bz, seed),
+      );
+      if (t % 8 === 0 && w === 1) world.set(bx, floorY + height - 1, bz, P.seaLantern);
       for (let y = floorY + 1; y < floorY + height; y++) {
-        world.set(bx, y, bz, y === floorY + 1 ? P.deepslateBricks : AIR);
+        // dado in deepslate, a glazed band at the top, air between
+        const band = y === floorY + height - 1;
+        world.set(
+          bx,
+          y,
+          bz,
+          y === floorY + 1
+            ? P.deepslateBricks
+            : band && w !== 1
+              ? prismAt(CITY_GLAZING, bx, y, bz, seed + 1)
+              : AIR,
+        );
       }
     }
   }
@@ -257,7 +401,14 @@ export function buildAncientCity(world: World): void {
   const level = 44;
 
   // the plate the city stands on
-  plate(world, rect(cx - 46, cz - 40, cx + 46, cz + 40), level, P.cobbledDeepslate, P.deepslate, 14);
+  const plateRegion = rect(cx - 46, cz - 40, cx + 46, cz + 40);
+  plate(world, plateRegion, level, P.cobbledDeepslate, P.deepslate, 14);
+
+  // ...and the two passes that stop the city reading as a grey slab: the outer
+  // face becomes glazing, the top becomes inlaid paving. Both run before the
+  // halls are raised so the buildings simply sit on top of them.
+  glazePlateRim(world, plateRegion, level, 0x5c17);
+  glazePlaza(world, plateRegion, level, cx + 2, cz + 2, 0x5c19);
 
   // spine, running along X through the middle
   corridor(world, cx - 40, cz - 1, cx + 40, cz + 1, level + 1, 5, 11);
@@ -268,12 +419,55 @@ export function buildAncientCity(world: World): void {
     [cx - 6, cz - 32, cx + 20, cz - 8],
     [cx - 28, cz + 8, cx + 4, cz + 30],
   ];
-  for (const [x1, z1, x2, z2] of halls) {
-    // floor + roof + walls as a hollow room
+  halls.forEach(([x1, z1, x2, z2], hallIndex) => {
+    // floor: deepslate brick, with a glass inlay panel down the middle so the
+    // pit's light comes up through the floor of the room above it
     world.fill(x1, level + 1, z1, x2, level + 1, z2, P.crackedDeepslateBricks);
-    world.fill(x1, level + 7, z1, x2, level + 7, z2, P.deepslateBricks);
-    world.rectWalls(x1, z1, x2, z2, level + 2, level + 6, P.deepslateBricks);
+    for (let z = z1 + 2; z <= z2 - 2; z++) {
+      for (let x = x1 + 2; x <= x2 - 2; x++) {
+        const onPanel = (x - x1) % 4 === 0 && (z - z1) % 4 === 0;
+        if (onPanel) world.set(x, level + 1, z, prismAt(CITY_GLAZING, x, level + 1, z, 0x5c21 + hallIndex));
+      }
+    }
+
+    // hollow, then a glazed vault instead of a solid roof: mullioned every
+    // fifth block, glass between, so daylight comes down into the hall
     world.fill(x1 + 1, level + 2, z1 + 1, x2 - 1, level + 6, z2 - 1, AIR);
+    for (let z = z1; z <= z2; z++) {
+      for (let x = x1; x <= x2; x++) {
+        const rib = (x - x1) % 5 === 0 || (z - z1) % 5 === 0;
+        world.set(x, level + 7, z, rib ? P.deepslateBricks : prismAt(CITY_GLAZING, x, level + 7, z, 0x5c23 + hallIndex));
+      }
+    }
+
+    // walls: a deepslate dado to shoulder height, a glazed band above it.
+    // Only the perimeter - the hall's interior was just hollowed out.
+    for (let y = level + 2; y <= level + 6; y++) {
+      const band = y >= level + 4;
+      const mullion = (y - level) % 2 === 0;
+      for (let x = x1; x <= x2; x++) {
+        for (const z of [z1, z2]) {
+          const rib = (x - x1) % 4 === 0;
+          world.set(
+            x,
+            y,
+            z,
+            band && !mullion && !rib ? prismAt(CITY_GLAZING, x, y, z, 0x5c25 + hallIndex) : P.deepslateBricks,
+          );
+        }
+      }
+      for (let z = z1 + 1; z < z2; z++) {
+        for (const x of [x1, x2]) {
+          const rib = (z - z1) % 4 === 0;
+          world.set(
+            x,
+            y,
+            z,
+            band && !mullion && !rib ? prismAt(CITY_GLAZING, x, y, z, 0x5c25 + hallIndex) : P.deepslateBricks,
+          );
+        }
+      }
+    }
 
     // doorways punched through the long walls
     const doorX = Math.round((x1 + x2) / 2);
@@ -295,6 +489,18 @@ export function buildAncientCity(world: World): void {
       for (let y = level + 2; y <= level + 6; y++) world.set(px, y, pz, P.chiseledDeepslate);
     }
 
+    // The Soul Keepers' mark, on the end wall the doorways do not use: an eye
+    // in glazing with a mosaic frieze over it. This is the one motif that makes
+    // the city read as *theirs* rather than as a deepslate ruin.
+    const midZ = Math.round((z1 + z2) / 2);
+    const halfW = Math.max(3, Math.min(6, Math.floor((z2 - z1) / 2) - 1));
+    eyeWindow(world, x1, level + 4, midZ, halfW, 1, false, P.chiseledDeepslate, 0x5c27 + hallIndex, CITY_GLAZING);
+    glassMosaic(world, x1, level + 6, midZ, halfW, 0, false, CITY_GLAZING, P.chiseledDeepslate, 0x5c29 + hallIndex);
+
+    // two prism pillars inside, so the hall is lit from within as well as above
+    prismPillar(world, x1 + 3, z1 + 3, level + 2, 5, CITY_GLAZING, 0x5c2b + hallIndex);
+    prismPillar(world, x2 - 3, z2 - 3, level + 2, 5, CITY_GLAZING, 0x5c2d + hallIndex);
+
     // sculk creeping in from one corner
     sculkPatch(world, x2 - 2, z2 - 2, 6, (x1 * 31 + z1) & 0xffff, 0.6);
 
@@ -303,7 +509,7 @@ export function buildAncientCity(world: World): void {
       world.set(x, level + 7, z1, P.polishedDeepslate);
       world.set(x, level + 7, z2, P.polishedDeepslate);
     }
-  }
+  });
 
   // the pit, sunk under the middle of the city
   wardenPit(world, cx + 2, cz + 2, level - 6, 77);

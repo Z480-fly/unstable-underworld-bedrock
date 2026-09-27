@@ -213,6 +213,7 @@ async function main(): Promise<void> {
     `transplanted purgatory: ${purgatoryChunks} chunks, ${purgatorySubChunks} subchunks ` +
       `(cx ${purgatory.minCx}..${purgatory.maxCx}, cz ${purgatory.minCz}..${purgatory.maxCz})`,
   );
+  log(`lit the purgatory's unlit rooms: ${purgatory.lampsPlaced} ceiling lamps`);
 
   await db.put(Buffer.from("game_flatworldlayers", "utf8"), Buffer.from("[]", "utf8"));
   await db.compactAll();

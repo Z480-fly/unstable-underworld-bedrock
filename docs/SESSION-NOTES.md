@@ -726,3 +726,129 @@ phone, that is affordable - but it is not free, and it is the reason the canopy
 is 27 sheets and not a continuous sheet.
 
 Full gate: typecheck clean, **54/54 tests**, palette OK, `world OK (40 checks)`.
+
+---
+
+## The city was too much deepslate, the sky was too high, and the Purgatory was unlit
+
+Three complaints from a playthrough on a phone at the lowest render distance.
+One of them turned out to be about a building this repo did not generate at
+all, and finding it is most of the work.
+
+### 1. The sky was 8 blocks too high
+
+The canopy band was `y=100..y124`, chosen to clear every landmark. It was
+wrong for the device it is played on: at minimum render distance a ceiling
+eight blocks further up is the first thing past the far end of the view, so
+the sky read as "hard to see" exactly where it was meant to be pretty.
+
+The band is now **`y=92..y116`** - one block above the highest ground in the
+realm (y=91). The cost is that sheets now drift through the crowns of the
+glass trees and the Glassworks spires, which is what the reference does
+anyway: a sheet passing behind a spire is what parallax looks like.
+
+`glassSky` had `const ceiling = 124` hardcoded, which would have silently
+clamped the canopy to a ceiling it does not use. It is now an option, and the
+canopy passes its own. **The band still has to be 24 blocks**, so the sheet
+table's arithmetic is unchanged - only every `y` moved down by 8. The existing
+`skyCanopyFitsTheBand` test caught the class of bug this invites, and a new one
+pins the band low so it cannot drift back up.
+
+### 2. The Sunken City: 92x80 blocks of deepslate facing the player
+
+"Can we change it to the stained glass design but keep the Warden stuff."
+
+The honest reading of the first pass was that it was not a palette problem. The
+city was *correct* - deepslate is what an Ancient City is made of - and the
+problem was that 92x80 blocks of it were **facing outward**: a 44-block wall on
+all four sides, and a bare cobble plaza on top. So the fix stops facing the
+world with rock rather than deleting the rock:
+
+- **`glazePlateRim`** - the plate's outer face becomes a stained-glass
+  foundation: a cornice, a plinth, a deepslate mullion every fourth block and
+  sea-lanterns every twelfth. This is the single highest-value change; it is
+  the thing you actually see from the void ring.
+- **`glazePlaza`** - the plate top is inlaid with diagonal glass courses
+  through the cobble, stopping exactly at the bowl's lip, with a green ring
+  (canon Soul Keeper green) one block out from it.
+- **Halls** - glazed vault instead of a solid roof, a glazed band over a
+  deepslate dado, a floor inlay panel, two prism pillars, and a glass **eye
+  window** in the end wall the doorways do not use, with a mosaic frieze over
+  it.
+- **Spine corridor** - glazed vault and a glazed top course with sea lanterns
+  every eighth bay, so the 80-block avenue is lit along its whole length.
+
+What did **not** change is the Warden. The pit, the bowl, the sculk, the
+shrieker, the sensors and the catalyst rim are exactly as dark as they were.
+That is the whole reason the glass reads as bright, and it is asserted two ways:
+no glazing inside the bowl, and the sculk/catalyst/shrieker still present.
+
+Two real bugs the tests caught while writing this:
+
+- The bowl test counted the **bounding square**, not the bowl. The 119 glass
+  blocks it found were in the four corners of that square, which are plaza and
+  are supposed to be glazed. A bowl is a disc.
+- `wardenPit` in the Sunken City clears to `rimY + 2 = 40`, but the plate top
+  is 44 - so the city's pit has been **roofed by four blocks of rock**
+  (y41..44) since it was written. The surface map says the floor is at y12; in
+  game there is a plaza on top of it and no way down. Pre-existing, not caused
+  by the glazing, and **left as-is on purpose**: opening it without a proper
+  descent turns a landmark into a 32-block death trap, and the arena's stair
+  does not transplant. Worth doing properly, as its own change.
+
+### 3. "The prison" is the Purgatory, and it is a seven-storey tower
+
+There is no structure called a prison anywhere in this repo, so the first move
+was to probe the vendored Purgatory source (`assets/purgatory/db`) and look.
+
+**The first detector was wrong, and wrong in an instructive way.** It looked
+for a solid block *above* a column's topmost block, which only finds overhangs
+and ledges. It reported "0 roofed columns" for a world that is almost entirely
+rooms. From above, a roofed room and a solid wall are the same thing - the top
+block is the roof. The test that actually identifies an interior is an **air
+run with solid below it and solid above it**.
+
+With that fixed, a single column says the whole story. At source `x=60, z=28`:
+
+```
+y43..53   deepslate_tiles     <- floor
+y54..63   air                 <- storey
+y64..64   deepslate_brick_slab
+y65..65   blackstone
+y66..76   air                 <- storey
+y77..77   tuff_bricks
+y78..88   deepslate_tiles     <- floor
+   ... repeating every 35 blocks, seven storeys, to y=271
+```
+
+It is a **230-block tower with no light in it**. Transplanted verbatim, "inside
+the prison" is a place you cannot see in - which is exactly what was reported.
+
+So the transplant is no longer quite verbatim. `planPurgatoryLighting` walks
+the source once, builds a bit per Y per column, and hangs a lamp flat under the
+ceiling of every enclosed air volume that has no light source in it. It is
+narrow on purpose:
+
+- only **enclosed** air is touched - no landscape silhouette moves and nothing
+  outdoors changes;
+- a room that already has a light in it is **left completely alone**, so any
+  lighting in the source build stays the author's;
+- it runs in source coordinates before the offset and writes nothing outside
+  the region the transplant already owns. **Nothing else in the Underworld is
+  in scope.**
+
+**20,304 lamps** in the final build. One lamp per 8x8 of floor, on a global
+grid so neighbouring columns line up instead of forming a diagonal weave, and
+one in four is a sea lantern rather than glowstone.
+
+The planner is a pure per-column function (`planColumn`) specifically so it can
+be tested against synthetic columns - the 300,000-column walk is ~40 seconds
+and the failure modes that matter (a lamp buried in rock, a lamp dropped into a
+room that already has a torch) are invisible in a build log. Six tests, four of
+them negative.
+
+### Full gate
+
+typecheck clean, **67/67 tests** (54 + 6 lighting + 7 new city/canopy),
+palette OK, `world OK (40 checks)`. Artifact **9,766,459 bytes** (was
+9,719,254): +47 KB for the city glazing and 20k lamps.

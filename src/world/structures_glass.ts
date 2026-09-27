@@ -205,6 +205,15 @@ export function glassSky(
      * the whole wasteland for the sake of a sky that is 60 blocks up.
      */
     protectGround?: boolean;
+    /**
+     * The Y a sheet's top layer may not pass.
+     *
+     * Defaults to 124, which is where every hand-placed sky in this map was
+     * tuned. It is an option because the realm-wide canopy sets its own, lower
+     * band, and a hardcoded constant in here would silently clamp the canopy
+     * to a ceiling it does not use.
+     */
+    ceiling?: number;
   } = {},
 ): void {
   const layers = opts.layers ?? 5;
@@ -214,7 +223,7 @@ export function glassSky(
   // Clamp the whole stack to fit under the ceiling rather than dropping it.
   // Silently returning on an out-of-range sky looked like the build passing
   // while the landmark quietly had no sky over it at all.
-  const ceiling = 124;
+  const ceiling = opts.ceiling ?? 124;
   if (baseY >= ceiling) return;
   const maxLayers = Math.max(1, Math.floor((ceiling - baseY) / layerGap));
   const layerCount = Math.min(layers, maxLayers);
