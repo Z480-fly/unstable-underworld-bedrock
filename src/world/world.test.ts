@@ -7,7 +7,7 @@ import { generateTerrain } from "./terrain.ts";
 import { buildAllAreas } from "./areas.ts";
 import { canopyCoverage, CANOPY_BAND } from "./sky_canopy.ts";
 import { SHEETS as CANOPY_SHEETS } from "./sky_canopy.ts";
-import { beaconCourse, beaconMast, BEACON_COLOURS, BEACON_COLLAR, BEACON_CROWN_Y } from "./beacons.ts";
+import { beaconCourse, beaconMast, BEACON_COLOURS, BEACON_CROWN_Y } from "./beacons.ts";
 import { VEIL_COURT } from "./veil_castle.ts";
 import { serializeSubChunk } from "../bedrock/subchunk.ts";
 import { buildSceneWorld } from "./scene.ts";
@@ -1075,14 +1075,25 @@ describe("the sky beacons", () => {
       const crown = world.get(mast.x, mast.crownY, mast.z);
       expect(crown?.name, `${id}'s crown should be a beacon block`).toBe(P.litBeacon.name);
       expect(crown?.states?.power_level, `${id}'s beacon is not lit`).toBeGreaterThan(0);
-      // The netherite collar it stands on. Netherite is a beacon base material,
-      // so this course is what makes the beam render rather than decoration.
+      // The pyramid it stands on. This is not decoration and not a style
+      // choice: a beacon's power is recomputed by the game from the blocks
+      // beneath it on every chunk load, and level 1 needs a complete 5x5 of
+      // base material. The 3x3 collar this used to assert scored zero, the game
+      // reset every beacon to unlit, and the masts showed no beam at all.
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          expect(
+            world.get(mast.x + dx, mast.crownY - 2, mast.z + dz)?.name,
+            `${id}'s beacon has no netherite base under it`,
+          ).toBe(P.netheriteBlock.name);
+        }
+      }
       for (let dx = -1; dx <= 1; dx++) {
         for (let dz = -1; dz <= 1; dz++) {
           expect(
-            world.get(mast.x + dx, mast.crownY - BEACON_COLLAR, mast.z + dz)?.name,
-            `${id}'s beacon has no netherite base under it`,
-          ).toBe(P.netheriteBlock.name);
+            world.get(mast.x + dx, mast.crownY - 1, mast.z + dz)?.name,
+            `${id}'s beacon has no iron tier under it`,
+          ).toBe(P.ironBlock.name);
         }
       }
       // ...ringed by lanterns, or it is a coloured stripe and not a beacon.

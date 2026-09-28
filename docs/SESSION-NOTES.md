@@ -1230,3 +1230,102 @@ and `target` added to the known state vocabulary), `render-preview.ts`.
 
 Full gate: typecheck clean, **108/108 tests**, palette OK, `pack OK`,
 `world OK (40 checks)`, 23/23 landmarks present and reachable.
+
+---
+
+## The beacons that did not fire, and the castle that had one floor
+
+Two reports from the same round of screenshots, and only one of them was a
+matter of taste.
+
+### Why no beam appeared
+
+Every one of the 24 masts was topped with a `minecraft:beacon` block carrying
+`power_level: 1` in its palette entry, and not one of them drew a beam. The
+state was written correctly - the tests asserted it, the file was right, and
+`validate-palette` was happy.
+
+The reason is that **`power_level` is a cache, not a fact.** The game recomputes
+a beacon's power from the blocks underneath it every time the chunk loads, and
+overwrites whatever the file said. The crowns were standing on a 3x3 collar of
+netherite, and 3x3 scores **zero**: the minimum for level 1 is a complete 5x5
+of base material. So on load, all 24 beacons were recomputed to unlit and sat
+there grey, in a world file that looked perfect to every tool that read it.
+
+This is worth writing down because it is a genuinely different failure mode from
+the usual "the geometry is wrong". Nothing is broken, nothing is missing, and
+the more you inspect the file the more correct it looks. The bug is in a rule
+the generator has to satisfy but never has to *represent*.
+
+Fixed by building an actual pyramid: a solid 5x5 netherite base, a 3x3 iron
+tier, a 3x3 netherite capital, and two decorative accent rings below it. The
+decorative rings are deliberately *below* the base - an earlier attempt painted
+the accent onto the base itself, which voids the pyramid just as thoroughly as
+leaving a hole in it, and is invisible except as a beacon that will not light.
+
+The Purgatory office beacon now imports `BEACON_TIERS` rather than re-declaring
+its own collar, because a 5x5 in one file and a 3x3 in the other means one mast
+silently never fires and only one of the two looks wrong.
+
+New test: `NEGATIVE: every beacon stands on a full 5x5 base, with clear air
+above`, naming the five valid base materials explicitly rather than counting
+"solid" blocks, and checking the three courses above each crown are air - a beam
+with a block on it is a beam one block long.
+
+### A castle with one floor
+
+The interior references are all the same building: a vaulted hall with a
+**balcony running down both sides** above a colonnade, banners on the rail, a
+broad stair at one end. The castle had a vault and a colonnade and no balcony,
+which is a corridor with a roof.
+
+`furnishGallery` adds the second storey - a three-wide deck ten courses over the
+paving, hard against each wall, on the line of the piers below, with a dark-oak
+rail on the nave side, corbels underneath, and two mirrored ten-course stairs at
+the ends of the hall. The hall's roof became a barrel vault (the rise taken
+across X only; taking it from the distance to the nearest edge on all four sides
+put the *lowest* point of the ceiling over the middle of the room and made the
+hall a funnel) with a mandala of concentric rings and twelve dark spokes laid in
+the vault's own surface.
+
+**Every room is now asserted walkable**, which is the user's actual requirement
+and the one thing a screenshot cannot check. A BFS floods real standable cells
+from the middle of the hall - four-way, with a step up or down, which is what a
+player can actually manage - and 16 named cells are then required to be in the
+set: both ends of the hall, the dais, **both stair feet and both stair tops**,
+four points on each gallery, the rotunda floor, two points on the rotunda dais
+ring, and both wings.
+
+That test found four real bugs, none of which were visible from outside:
+
+1. **The newel post was in the staircase.** Both flights are hard against a
+   wall, so the only way onto one is across the nave; a post on the nave column
+   is a post in the doorway of its own stairs. The BFS failed both flights on
+   exactly that. It now stands on the outer column, which is also the classic
+   place for one.
+2. **The colonnade piers were in the staircases too.** Fourteen courses tall, on
+   the exact line the stairs climb. The run moved to z126-z142, clear of both
+   flights. A plan view of either room would not have shown it.
+3. **The wall banners went up through the gallery deck.** They ran to LEVEL+13;
+   the deck is at LEVEL+10, so three of them ended up standing in the middle of
+   the gallery walkway. They stop under the deck now.
+4. **The pews were in the nave.** Moved outboard to `HALL_X1+1..+2` so they sit
+   against the wall, and the two z bands the stairs occupy are left clear so a
+   bench is not buried under four courses of stone tread.
+
+The potted trees on the dais are **glass**, not leaves. The whole Underworld is
+glazed and a world-wide test asserts there is not one leaf block in it; a
+dark-oak topiary would have been the only foliage in 704x704 blocks of glass and
+blackstone, in the one room a player is guaranteed to walk into.
+
+### Files
+
+`src/world/beacons.ts` (real pyramid, `BEACON_TIERS`), `purgatory.ts` (office
+beacon shares the tiers), `veil_castle.ts` (gallery, stairs, barrel vault,
+mandala, pew and banner fixes), `veil_castle.test.ts` (11 tests, incl. the BFS
+reachability check and the beacon-pyramid test), `world.test.ts` and
+`purgatory.test.ts` updated off the old 3x3 collar.
+
+Full gate: typecheck clean, **111/111 tests**, palette OK, `pack OK`,
+`world OK (40 checks)`. Verified in the built `.mcworld`: 24 beacon blocks, iron
+pyramid tiers and netherite bases present in the decompressed `db/`.
