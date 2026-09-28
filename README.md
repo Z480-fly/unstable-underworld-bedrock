@@ -165,8 +165,20 @@ straight from screenshots:
   The great hall has a colonnade, pews in rows either side of the aisle, banners, three chandeliers on
   chains, a tiered dais and a throne; both wings are library galleries with bookcases and refectory
   tables; the rotunda under the dome has a compass-rose floor in glass and stone, eight piers and a ring
-  of chandeliers. Three doorways connect them, and they are checked as *walkable* rather than by
-  counting blocks - a door cut before the room behind it is built gets paved over again.
+  of chandeliers.
+
+  The hall is **two storeys**, as the references are: a barrel vault with a mandala of concentric rings
+  and twelve dark spokes laid in its own surface, and below it a **gallery running down both sides** -
+  a three-wide dark-oak deck ten courses over the paving, on the line of the colonnade, with a rail,
+  banners hung off it and corbels underneath, reached by two mirrored staircases at the ends of the hall.
+
+  Every room is asserted **walkable**, which is the actual requirement and the one thing a screenshot
+  cannot check. A BFS floods real standable cells from the middle of the hall - four-way, one step up or
+  down - and 16 named cells must be in the set, including both stair feet, both stair tops and four
+  points on each gallery. Counting doors does not work: a door cut before the room behind it is built
+  gets paved over again. That check is what found the newel post standing in its own staircase, the
+  colonnade piers standing in the staircases, the wall banners running up through the gallery deck, and
+  the pews sitting in the nave - none of which is visible from outside the building.
 
   The green medallions on the facade are **eyes**, not roundels: an almond of white sclera with a
   green iris, a black pupil and a sea-lantern catchlight, in a chiselled sandstone socket. Nine of them -
@@ -189,13 +201,18 @@ every sheet in the sky. It is the one thing in the world that is never behind gl
 - the Underworld is a near-flat grey plate under a sheet of overlapping glass, and before this there was
 no way to tell where you were from the air.
 
-The crown is a real `minecraft:beacon` block stored with `power_level: 1`, standing on two courses of
-netherite. Netherite is one of the five vanilla beacon base materials, so the collar is what makes the
-beacon *activated* rather than a lookalike, and because the state is written into the subchunk the beam
-renders the moment the world loads. The crown sits at y121 rather than y123 with nothing on top of it,
-because an active beacon draws its beam from its own block upward and anything above it - the glowstone
-flame that used to be there - cuts the beam off one block long. A test fails if any crown has a block
-over it.
+The crown is a real `minecraft:beacon` block on a real **beacon pyramid**: a solid 5x5 of netherite
+with a 3x3 of iron above it, and two decorative accent rings below that. The pyramid is the whole trick.
+A beacon's `power_level` is a *cache*, not a fact - the game recomputes the power from the blocks
+underneath every time the chunk loads and overwrites whatever the file said - so a mast capped with a
+3x3 collar, however it is written, is reset to unlit on load and shows no beam at all. 3x3 scores zero;
+level 1 needs a complete 5x5 of base material. The accent is kept strictly off the two load-bearing
+tiers for the same reason: a single pane of glass in the middle of the base voids it, and a test asserts
+all 25 blocks of every base by name.
+
+The crown sits at y121 rather than y123 with nothing on top of it, because an active beacon draws its
+beam from its own block upward and anything above it - the glowstone flame that used to be there - cuts
+the beam off one block long. A test fails if any crown has a block over it.
 
 There are sixteen stained glasses and twenty-three landmarks, so each beacon is a `main` colour with an
 `accent` band and every *pair* is unique; `bun test` asserts that no two landmarks share one. The
@@ -208,7 +225,9 @@ Purgatory gets its own, built inside the transplant rather than in `beacons.ts`:
 tower with no exterior, so a mast in the sky would be useless. Instead a green glass column stands in
 the middle of the office rotunda at source-local (274, 283) - the room in the `Position: -623, 270, 23`
 screenshot - runs from its floor at y251 up through the storeys above and out onto the roof at y282,
-where it ends in the same netherite collar and lit beacon block, the top of the island and the only
+where it ends in the same pyramid and lit beacon block as the Underworld masts - imported from
+`beacons.ts` rather than re-declared, because a 5x5 in one file and a 3x3 in the other means one mast
+silently never fires and only one of the two looks wrong. It is the top of the island and the only
 thing on Purgatory visible from the Underworld.
 
 ### The wasteland between the set pieces
@@ -417,6 +436,11 @@ Verified programmatically on every build:
   twenty-three landmarks places its signature geometry (`bun run audit` prints the counts);
 * every landmark has a sky beacon, no two beacons share a colour pair, and every crown stands above
   the canopy rather than behind it;
+* every beacon stands on a **complete 5x5 of valid base material** with three clear courses above it,
+  by name rather than by counting solid blocks - `power_level` is only a cache, and a pyramid the game
+  recomputes to zero is a grey block in a file that looks perfect;
+* every room in the Veil Castle is reachable on foot from the middle of the great hall, both stairs and
+  both galleries included;
 * the Veil Castle's purple approach is one unbroken 55-block run from the causeway to the hall, and
   the castle's quartz never reaches into the portal court next door;
 * the Warden's bowl contains no glazing at all, and still has its sculk, its catalyst rim and its

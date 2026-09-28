@@ -395,15 +395,28 @@ function greatHall(world: World): void {
       }
     }
   }
-  // A hipped roof, glazed between the rafters, so the hall glows from above.
+  // A barrel vault, glazed between the rafters, so the hall glows from above.
+  //
+  // The rise is across X and constant along Z, so the ceiling is highest over
+  // the middle of the floor. The first version took its rise from the distance
+  // to the nearest edge on *all four* sides, which put the lowest point of the
+  // ceiling over the middle of the room and made the hall a funnel.
   for (let z = HALL_Z1; z <= HALL_Z2; z++) {
     for (let x = HALL_X1; x <= HALL_X2; x++) {
-      const inset = Math.min(x - HALL_X1, HALL_X2 - x, z - HALL_Z1, HALL_Z2 - z);
-      const rise = Math.max(0, 6 - inset);
-      for (let y = top + 1; y <= top + 1 + rise; y++) {
-        const rafter = inset === 0 || (x + z) % 3 === 0;
-        world.set(x, y, z, rafter ? WARM : ROOF_LIGHT);
-      }
+      const across = Math.min(x - HALL_X1, HALL_X2 - x);
+      const rise = Math.max(0, 6 - across);
+      const y = top + 1 + rise;
+      const rafter = across === 0 || (x + z) % 3 === 0;
+      for (let yy = top + 1; yy <= y; yy++) world.set(x, yy, z, rafter ? WARM : ROOF_LIGHT);
+      // The mandala, laid in the vault's own surface: concentric rings with
+      // twelve dark spokes, the way the reference's great halls do their
+      // ceilings. Drawn on the top course of each column, so it reads as a
+      // ceiling rather than as a skylight.
+      const d = Math.hypot(x - (HALL_X1 + 7), z - (HALL_Z1 + 21));
+      if (d > 10.5) continue;
+      const spoke = Math.floor((Math.atan2(z - (HALL_Z1 + 21), x - (HALL_X1 + 7)) + Math.PI) / (Math.PI / 6)) % 2;
+      const ring = d < 2.6 ? P.blackGlass : d < 5 ? P.greenGlass : d < 7.5 ? P.cyanGlass : P.whiteGlass;
+      world.set(x, y, z, spoke === 0 && d > 2.6 ? WARM : ring);
     }
   }
   // The eyes on the west face, over the axis: the reference hangs them either
@@ -430,8 +443,11 @@ function greatHall(world: World): void {
       world.set(x, LEVEL, HALL_Z1 + 21 + dz, Math.abs(dz) === 2 ? CARPET_EDGE : CARPET);
     }
   }
-  // The dais, the throne and the pews are `furnishHall`'s job, below.
+  // The dais, the throne and the pews are `furnishHall`'s job, below, and the
+  // gallery level and its two stairs are `furnishGallery`'s. Both run inside
+  // here so the shell is finished before anything tries to furnish it.
   furnishHall(world);
+  furnishGallery(world);
   world.protect(Math.round((HALL_X1 + HALL_X2) / 2), HALL_Z1 + 21, 24);
 }
 
@@ -487,10 +503,42 @@ function furnishHall(world: World): void {
   world.set(tx, LEVEL + 7, mid, P.glowstone);
   world.set(HALL_X2 - 6, LEVEL + 1, mid, P.lectern);
 
+  // A second throne, off the axis, and potted trees at the corners of the
+  // platform: the reference dais is a *room*, not a single chair.
+  for (const dz of [-5, 5]) {
+    world.set(tx, LEVEL + 4, mid + dz, P.darkOakPlanks);
+    world.set(tx, LEVEL + 5, mid + dz, P.darkOakPlanks);
+    world.set(tx, LEVEL + 6, mid + dz, P.darkOakPlanks);
+    for (const d2 of [-1, 1]) world.set(tx, LEVEL + 5, mid + dz + d2, P.darkOakFence);
+  }
+  // Potted trees at the corners of the platform. The crowns are *glass*, not
+  // leaves: the whole Underworld is glazed, and a world-wide test asserts there
+  // is not one leaf block in it. A topiary in dark-oak foliage would be the
+  // only foliage in 704x704 blocks of glass and blackstone, and it would be in
+  // the one room a player is guaranteed to walk into.
+  for (const [px, pz] of [
+    [HALL_X2 - 1, mid - 9],
+    [HALL_X2 - 1, mid + 9],
+  ] as const) {
+    world.set(px, LEVEL + 1, pz, P.chiseledSandstone);
+    world.set(px, LEVEL + 2, pz, P.darkOakLog);
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      world.set(px + dx, LEVEL + 3, pz + dz, (dx + dz) % 2 === 0 ? P.greenGlass : P.limeGlass);
+    }
+    world.set(px, LEVEL + 3, pz, P.greenGlass);
+    world.set(px, LEVEL + 4, pz, P.soulLantern);
+  }
+
   // The colonnade: quartz piers either side of the aisle, a sandstone base and
   // capital, and a sea lantern set into each capital so the room lights itself.
+  //
+  // The run is z126 to z142, clear of both staircases. The piers are fourteen
+  // courses tall and stand on the exact line the gallery stairs climb, so a
+  // pier at z118 or z148 is a stone column in the middle of a staircase - it
+  // would not have shown up in a plan view of either room, and it is exactly
+  // the sort of thing a screenshot of the finished hall cannot reveal.
   for (const x of [HALL_X1 + 3, HALL_X2 - 3]) {
-    for (let z = HALL_Z1 + 6; z <= HALL_Z2 - 6; z += 8) {
+    for (let z = HALL_Z1 + 14; z <= HALL_Z2 - 12; z += 4) {
       for (let y = LEVEL + 1; y <= LEVEL + 14; y++) {
         world.set(x, y, z, y === LEVEL + 1 || y === LEVEL + 14 ? WARM_TRIM : y % 5 === 0 ? WARM : PALE);
       }
@@ -499,15 +547,22 @@ function furnishHall(world: World): void {
   }
 
   // Pews: benches in rows either side of the aisle, back to the wall, with a
-  // clear block between rows so you can walk them. The dais end is left clear.
+  // clear block between rows so you can walk them. They sit *outboard* of the
+  // colonnade - the piers are the aisle's edge, and a bench drawn over a pier's
+  // base is a bench with a column standing in it.
+  //
+  // The two z bands the gallery stairs occupy are left clear, because
+  // `furnishGallery` runs after this and would bury a bench under four courses
+  // of stone tread.
   for (let z = HALL_Z1 + 5; z <= HALL_Z2 - 5; z += 3) {
     if (Math.abs(z - mid) <= 4) continue;
+    const inWestStair = z >= HALL_Z1 + 1 && z <= HALL_Z1 + 10;
+    const inEastStair = z >= HALL_Z2 - 10 && z <= HALL_Z2 - 1;
+    if (inWestStair || inEastStair) continue;
     const nearDais = z > mid - 9 && z < mid + 9;
     for (const [x1, x2, backX] of [
-      [HALL_X1 + 2, HALL_X1 + 4, HALL_X1 + 2],
-      // Two wide, not three: the third column is the aisle, and a bench across
-      // the aisle is a bench between the door and the rest of the hall.
-      [HALL_X2 - 4, HALL_X2 - 3, HALL_X2 - 3],
+      [HALL_X1 + 1, HALL_X1 + 2, HALL_X1 + 1],
+      [HALL_X2 - 2, HALL_X2 - 1, HALL_X2 - 1],
     ] as const) {
       if (nearDais && x1 > HALL_X2 - 5) continue;
       for (let x = x1; x <= x2; x++) world.set(x, LEVEL + 1, z, P.darkOakPlanks);
@@ -519,16 +574,123 @@ function furnishHall(world: World): void {
   // The bays either side of the axis are left out: that is where the doors to
   // the rotunda and the wings are, and a banner across a doorway is a banner
   // nobody can get past.
+  //
+  // They stop at LEVEL+9, under the gallery deck at LEVEL+10. Run to the old
+  // LEVEL+13 they went straight up through the balcony, and three of them
+  // ended up standing in the middle of the gallery walkway - invisible in a
+  // plan view of either the hall or the gallery, and the third thing this
+  // build has had to learn about putting a floor above a room.
   for (const x of [HALL_X1 + 1, HALL_X2 - 1]) {
     for (const z of [HALL_Z1 + 8, HALL_Z1 + 16, HALL_Z1 + 28, HALL_Z2 - 8]) {
-      for (let y = LEVEL + 6; y <= LEVEL + 13; y++) {
-        world.set(x, y, z, y === LEVEL + 13 ? WARM_TRIM : y % 4 === 0 ? CARPET_EDGE : CARPET);
+      for (let y = LEVEL + 6; y <= LEVEL + 9; y++) {
+        world.set(x, y, z, y === LEVEL + 9 ? WARM_TRIM : y % 4 === 0 ? CARPET_EDGE : CARPET);
       }
     }
   }
   for (const z of [HALL_Z1 + 7, mid, HALL_Z2 - 7]) {
     chandelier(world, HALL_X1 + 7, z, LEVEL + 18, 5);
   }
+}
+
+/**
+ * The gallery level, and the two stairs that reach it.
+ *
+ * Every interior reference the user sent has the same shape: a great vaulted
+ * hall with a **balcony running down both sides**, a broad stair at one end,
+ * banners on the balcony rail and the roof open above the floor. The first
+ * version of this castle was one storey, which is a corridor with a roof.
+ *
+ * So the hall gets a second storey. The gallery floor is at y56 - ten courses
+ * over the paving, which clears the pews, the colonnade and the dais with room
+ * to spare - three blocks wide down each side wall, with a dark-oak rail on the
+ * nave side so you can see the floor from it and not fall off it.
+ *
+ * The stairs are the reason the gallery is reachable at all: a first floor with
+ * no stair to it is a balcony for the decoration, which is exactly what "every
+ * room should be accessible" is about. They are mirrored - one at each end of
+ * the hall, rising away from the door - so the approach is symmetrical and both
+ * ends of the gallery can be reached without crossing the nave.
+ */
+function furnishGallery(world: World): void {
+  const mid = HALL_Z1 + 21;
+  const floorY = LEVEL + 10;
+  // Three wide, hard against each wall.
+  const runs = [
+    { x1: HALL_X1 + 1, x2: HALL_X1 + 3, railX: HALL_X1 + 3, from: HALL_Z1 + 11, to: HALL_Z2 - 2 },
+    { x1: HALL_X2 - 3, x2: HALL_X2 - 1, railX: HALL_X2 - 3, from: HALL_Z1 + 2, to: HALL_Z2 - 11 },
+  ] as const;
+
+  for (const run of runs) {
+    for (let z = run.from; z <= run.to; z++) {
+      for (let x = run.x1; x <= run.x2; x++) {
+        // The deck, and headroom above it: the vault springs from y65, so a
+        // gallery at y56 has eight courses of air over it before the roof.
+        world.set(x, floorY, z, (x + z) % 2 === 0 ? P.darkOakPlanks : P.sprucePlanks);
+      }
+      // A rail on the nave side only. The wall side needs none, because there
+      // is no drop there - the deck starts hard against the hall wall - and a
+      // rail on both sides of a three-wide balcony leaves exactly one block to
+      // walk on, which is a ledge, not a gallery.
+      if ((z - run.from) % 6 !== 3) world.set(run.railX, floorY + 1, z, P.darkOakFence);
+    }
+    // Corbels under the deck every four blocks, so the balcony is carried
+    // rather than floating.
+    for (let z = run.from; z <= run.to; z += 4) {
+      for (let x = run.x1; x <= run.x2; x++) world.set(x, floorY - 1, z, WARM_TRIM);
+    }
+  }
+
+  // The stairs. Ten courses each, three wide, at the two ends of the hall: the
+  // north-west flight rises south-to-north along the west wall, the south-east
+  // flight rises north-to-south along the east wall, and both land on the end
+  // of their gallery.
+  //
+  // They are drawn *over* the pews rather than beside them, which is why the
+  // pew loop below skips these z ranges: a bench at floor level with a stone
+  // tread four courses above it is not a bench, it is a crawlspace.
+  for (let i = 0; i < 10; i++) {
+    const y = LEVEL + 1 + i;
+    // North-west: from z = HALL_Z1 + 1 upward in z.
+    for (let x = HALL_X1 + 1; x <= HALL_X1 + 3; x++) {
+      world.set(x, y, HALL_Z1 + 1 + i, i % 4 === 3 ? WARM_TRIM : (x + i) % 2 === 0 ? P.smoothStone : P.quartz);
+    }
+    // South-east: mirrored.
+    for (let x = HALL_X2 - 3; x <= HALL_X2 - 1; x++) {
+      world.set(x, y, HALL_Z2 - 1 - i, (x + i) % 2 === 0 ? P.smoothStone : P.quartz);
+    }
+  }
+  // A newel post and a lamp at the foot of each flight, so the bottom of a
+  // stair is marked from the far end of the hall.
+  //
+  // On the stair's *outer* column, hard against the wall - the classic place
+  // for one, and the only place that works. Both flights are hard against a
+  // wall, so the only way onto them is across the nave; a post on the nave
+  // column is a post in the doorway of its own staircase, and the BFS that
+  // checks every room is walkable failed both flights on exactly that. The
+  // outer column leaves the middle two treads clear, which is all a player
+  // needs to get up.
+  for (const [x, z] of [
+    [HALL_X1 + 1, HALL_Z1 + 1],
+    [HALL_X2 - 1, HALL_Z2 - 1],
+  ] as const) {
+    for (let y = LEVEL + 1; y <= LEVEL + 4; y++) world.set(x, y, z, P.darkOakLog);
+    world.set(x, LEVEL + 5, z, P.seaLantern);
+  }
+  // Banners on the rail, and a pair of chandeliers under the vault between
+  // the galleries. Hung on the *rail* line, so they hang over the nave and not
+  // into the walkway behind it.
+  //
+  // Every eight blocks, not every twelve: the galleries are 30 long, so at
+  // twelve there were two banners a side and the balcony read as bare decking.
+  // The reference hangs them in a continuous rhythm down the whole rail.
+  for (const run of runs) {
+    for (let z = run.from + 2; z <= run.to - 2; z += 8) {
+      for (let y = floorY + 1; y <= floorY + 5; y++) {
+        world.set(run.railX, y, z, y === floorY + 5 ? WARM_TRIM : y % 3 === 0 ? CARPET_EDGE : CARPET);
+      }
+    }
+  }
+  for (const z of [HALL_Z1 + 6, mid, HALL_Z2 - 6]) chandelier(world, HALL_X1 + 7, z, LEVEL + 18, 6);
 }
 
 /**

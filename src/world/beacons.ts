@@ -14,13 +14,20 @@
  * to a netherite crown at y121 - above every sheet in the sky, so it is the one
  * thing in the world that is never behind glass.
  *
- * The crown is an actual **lit beacon block**, on a netherite base, with clear
- * air above it: the request was for beacons *activated*, which is a real
- * vanilla thing and not a lookalike. A beacon's power comes from the block
- * under it - and netherite is one of the five pyramid materials - so the
- * 3x3 netherite collar is not decoration, it is what makes the beam render.
- * Because the state is written into the subchunk, the beam is there the moment
- * the world loads rather than waiting for a player to feed it metal.
+ * The crown is an actual **lit beacon block** standing on a real beacon
+ * pyramid, with clear air above it: the request was for beacons *activated*,
+ * which is a real vanilla thing and not a lookalike.
+ *
+ * This is worth spelling out because it is the one part of the build that is
+ * not just geometry. A beacon's power is *recomputed by the game* from the
+ * blocks underneath it every time the chunk loads - the `power_level` in the
+ * palette is only a cache the game is free to overwrite. So a mast capped with
+ * a 3x3 of netherite, with `power_level: 1` written into the subchunk, looks
+ * lit in every tool that reads the file and produces **no beam at all** in the
+ * game, because 3x3 scores zero: the minimum for level 1 is a complete 5x5.
+ * The crown is therefore a genuine two-tier pyramid - 5x5 netherite over 3x3
+ * iron - and the masts have a beam the moment the world loads, without waiting
+ * for a player to go and feed it metal.
  *
  * Four decisions that are not obvious:
  *
@@ -63,14 +70,44 @@ import type { World } from "./world.ts";
 export const BEACON_CROWN_Y = 121;
 
 /**
- * Courses of 3x3 netherite under the beacon block.
+ * How many courses the crown's pyramid occupies below the beacon itself.
  *
- * Netherite is one of the five beacon base materials, so this collar is not
- * decoration: it is the block that makes the crown *lit* instead of a dead grey
- * one. The upper course is inset with accent glass on its four edge midpoints
- * so the collar is not a grey lump from the ground.
+ * This number is the whole reason the beams work, so it is worth being blunt
+ * about what went wrong before it was 5.
+ *
+ * A beacon's power is **not** stored, it is *recomputed* by the game from the
+ * blocks underneath it every time the chunk loads. The `power_level` written
+ * into the palette is only a cache: if the pyramid underneath does not support
+ * it, the game recomputes 0 and the block sits there grey and dead. A level-1
+ * beacon needs a complete **5x5** layer of base material directly under it -
+ * 3x3 scores nothing at all - which is why the first version of these masts
+ * produced twenty-four perfectly lit-looking beacons and not one beam.
+ *
+ * So the collar is a real two-tier pyramid, exactly as the reference builds it:
+ *
+ *     crownY    the beacon, ringed by sea lanterns and accent panes
+ *     crownY-1  3x3  iron      <- pyramid tier 2
+ *     crownY-2  5x5  netherite <- pyramid tier 1, the base that makes it lit
+ *     crownY-3  7x7  accent ring, decorative only
+ *     crownY-4  5x5  netherite ring, decorative only
+ *     crownY-5  3x3  netherite capital, carrying the overhang
+ *
+ * Only the two solid tiers are load-bearing and they are entirely valid base
+ * material, because a single pane of glass in the middle of a layer is enough
+ * to void the whole thing. The colour lives in the rings *below* the pyramid,
+ * where it is decorative and cannot cost the mast its beam.
  */
-export const BEACON_COLLAR = 2;
+export const BEACON_COLLAR = 5;
+
+/**
+ * Half-widths of the crown's five courses, top down: 3x3, 3x3, 5x5, 7x7, 5x5.
+ *
+ * Kept as data rather than three loops because the Purgatory office beacon
+ * builds the same crown and the two have to agree - and because the order is
+ * the entire point. Widening goes *downward*, and the two solid tiers (indices
+ * 1 and 2) are the only ones the game ever looks at.
+ */
+export const BEACON_TIERS = [1, 1, 2, 3, 2] as const;
 
 /** Shortest mast worth building. Below this the crown crowds the roofline. */
 export const MIN_BEACON_HEIGHT = 8;
@@ -106,8 +143,15 @@ function topSolidBelow(world: World, x: number, z: number, ceiling: number): num
 /** Every ninth course is a dark band, so the mast reads as built, not as a stick. */
 const BAND_EVERY = 9;
 
-/** Two accent halos near the crown: the thing you actually see from a distance. */
-const HALO_OFFSETS = [4, 8] as const;
+/**
+ * Two accent halos below the crown: the thing you actually see from a distance.
+ *
+ * Eight and twelve courses down, not four and eight. The pyramid now occupies
+ * the five courses directly under the beacon, and a halo drawn inside it is
+ * painted over by the tier above it - a ring of accent glass that costs twenty
+ * four blocks per mast and is never once visible.
+ */
+const HALO_OFFSETS = [8, 12] as const;
 
 export interface BeaconColours {
   /** The beacon's own colour. Its crown is always this. */
@@ -217,17 +261,17 @@ export function buildBeacons(world: World): BeaconMast[] {
 export function buildBeacon(world: World, mast: BeaconMast): void {
   const { x, z, baseY, crownY, colours } = mast;
 
-  // The shaft stops two courses short of the crown: those two are the collar
-  // the beacon stands on, and a course of mast glass poking out of the middle
-  // of the collar would be the one block you can see the beam failing to start
-  // above.
-  for (let y = baseY; y < crownY - BEACON_COLLAR; y++) {
+  // The shaft stops short of the crown: the courses above this one are the
+  // pyramid, and a course of mast glass poking out through the middle of a
+  // 5x5 base is the one block you can see the beam failing to start above.
+  for (let y = baseY; y <= crownY - BEACON_TIERS.length; y++) {
     world.set(x, y, z, beaconCourse(colours, y - baseY));
   }
 
   // Halos: a plus of accent glass floating clear of the shaft, so the beacon
-  // has a silhouette from ground level as well as from the air. They are only
-  // two courses of four blocks each, which is nothing against a 700x700 world.
+  // has a silhouette from ground level as well as from the air. They sit below
+  // the pyramid's shoulder, because a halo drawn into the 7x7 ring is a halo
+  // nobody can see.
   for (const offset of HALO_OFFSETS) {
     const y = crownY - offset;
     for (const [dx, dz] of [
@@ -240,27 +284,51 @@ export function buildBeacon(world: World, mast: BeaconMast): void {
     }
   }
 
-  // The crown, from the top down: the lit beacon itself, a ring of sea lanterns
-  // on the corners of the course below it, then the netherite collar it stands
-  // on. The beam starts at the beacon and goes up, so the one course above the
-  // crown is deliberately left as air.
+  // The crown. Two solid tiers of base material, then the decoration, then the
+  // beacon on top with clear air above it.
+  //
+  //   crownY-5  5x5 ring        decorative
+  //   crownY-4  7x7 ring        decorative, the mast's colour shoulder
+  //   crownY-3  5x5 netherite   PYRAMID BASE - this is what lights it
+  //   crownY-2  3x3 iron        PYRAMID TIER 2
+  //   crownY-1  the beacon's neighbours
+  //   crownY    the beacon
+  //
+  // The two load-bearing tiers are drawn as solid squares rather than rings, and
+  // they are solid *only* valid base material. A ring would leave holes the
+  // size of the mast shaft in the middle of the base, and the game counts a
+  // pyramid with a hole in it as no pyramid at all. The accent is confined to
+  // the two courses *below* the base for the same reason: painted onto the base
+  // itself it would void the pyramid, which is precisely the bug this file was
+  // rewritten to fix.
+  for (const [i, half] of BEACON_TIERS.entries()) {
+    const y = crownY - i;
+    for (let dz = -half; dz <= half; dz++) {
+      for (let dx = -half; dx <= half; dx++) {
+        const decorative = i >= 3;
+        const edge = Math.max(Math.abs(dx), Math.abs(dz)) === half;
+        world.set(
+          x + dx,
+          y,
+          z + dz,
+          decorative && edge ? colours.accent : i === 1 ? P.ironBlock : P.netheriteBlock,
+        );
+      }
+    }
+  }
+
+  // The beacon's own course: the lit block dead centre, four sea lanterns on
+  // the corners and four accent panes on the edge midpoints. The beam starts at
+  // the beacon and goes up, so the course above the crown is left as air.
   for (let dz = -1; dz <= 1; dz++) {
     for (let dx = -1; dx <= 1; dx++) {
       const corner = Math.abs(dx) + Math.abs(dz) === 2;
-      const edge = !corner && (dx === 0 || dz === 0);
-      const middle = dx === 0 && dz === 0;
-      // crownY: the beacon, ringed by four sea lanterns and four accent panes.
       world.set(
         x + dx,
         crownY,
         z + dz,
-        middle ? P.litBeacon : corner ? P.seaLantern : colours.accent,
+        dx === 0 && dz === 0 ? P.litBeacon : corner ? P.seaLantern : colours.accent,
       );
-      // crownY-1: netherite, with the four edge midpoints in the accent glass.
-      world.set(x + dx, crownY - 1, z + dz, edge ? colours.accent : P.netheriteBlock);
-      // crownY-2: solid netherite. This course is the beacon's base, and the
-      // only reason the crown is lit at all.
-      world.set(x + dx, crownY - 2, z + dz, P.netheriteBlock);
     }
   }
 

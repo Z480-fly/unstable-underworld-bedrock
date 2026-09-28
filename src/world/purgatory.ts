@@ -69,6 +69,7 @@ import { readLevelDbDirectory } from "../bedrock/leveldb-reader.ts";
 import { decodeSubChunk } from "../bedrock/subchunk-reader.ts";
 import { serializeSubChunk } from "../bedrock/subchunk.ts";
 import { P, stabilize, type BlockState } from "./blocks.ts";
+import { BEACON_TIERS } from "./beacons.ts";
 import { hash2 } from "./noise.ts";
 
 export const PURGATORY = {
@@ -186,42 +187,59 @@ const blockKey = (x: number, y: number, z: number): number =>
  * still produces a column of *something* and would pass a "is there glass here"
  * check.
  *
- * The crown is the same netherite collar and *lit* beacon block the Underworld
- * masts use, because a beacon that is switched off is not the thing that was
- * asked for. Two courses of 3x3 netherite sit under the beacon - netherite is
- * a beacon base material, which is what makes the beam render - and the course
- * above the beacon is left empty, because a beam with a block on top of it is
- * a beam one block long.
+ * The crown is the same real beacon *pyramid* and *lit* beacon block the
+ * Underworld masts use, because a beacon that is switched off is not the thing
+ * that was asked for. The tiers are imported rather than re-declared so the two
+ * cannot drift apart: a 3x3 collar here and a 5x5 there would mean one of the
+ * two masts silently never fires, and only one of them would look wrong.
+ *
+ * The pyramid is the whole trick. A beacon's power is recomputed by the game
+ * from the blocks below it on every chunk load, and level 1 needs a complete
+ * **5x5** of base material - a 3x3 collar scores zero no matter what
+ * `power_level` says in the file. So the courses under the beacon are drawn
+ * from `BEACON_TIERS`, and the shaft stops short of them rather than running up
+ * through the middle of the base and putting a pane of glass in the one layer
+ * that has to be solid. The course above the beacon is left empty, because a
+ * beam with a block on top of it is a beam one block long.
  */
 export function planOfficeBeacon(into: LightingPlan): LightingPlan {
   const { x, z, baseY, topY, main, accent, band } = PURGATORY_OFFICE_BEACON;
-  for (let y = baseY; y <= topY; y++) {
+  const shaftTop = topY - BEACON_TIERS.length;
+  for (let y = baseY; y <= shaftTop; y++) {
     const course = y - baseY;
     let block: BlockState;
-    if (course === topY - baseY) block = P.litBeacon;
-    else if (course === topY - baseY - 1) block = P.seaLantern;
-    else if (course % band === 0) block = P.netheriteBlock;
+    if (course % band === 0) block = P.netheriteBlock;
     else if (course % band === 3) block = accent;
     else block = main;
     into.set(blockKey(x, y, z), block);
   }
-  // The 3x3 collar, drawn around the crown. The four edge midpoints of the
-  // upper course are accent glass so the collar carries the mast's colour up
-  // into the crown the same way the Underworld masts do.
+  // The pyramid, tier by tier. The two load-bearing tiers are solid squares of
+  // base material; the two courses below them carry the mast's colour and the
+  // game never looks at them, so the accent is kept strictly off the base.
+  for (const [i, half] of BEACON_TIERS.entries()) {
+    const y = topY - i;
+    for (let dx = -half; dx <= half; dx++) {
+      for (let dz = -half; dz <= half; dz++) {
+        const decorative = i >= 3;
+        const edge = Math.max(Math.abs(dx), Math.abs(dz)) === half;
+        into.set(
+          blockKey(x + dx, y, z + dz),
+          decorative && edge ? accent : i === 1 ? P.ironBlock : P.netheriteBlock,
+        );
+      }
+    }
+  }
+  // The beacon's own course, ringed by sea lanterns on the corners and accent
+  // panes on the edge midpoints. `middle` is never painted over: that cell is
+  // the beacon, and a hat on top of it is how a mast stops working.
   for (let dx = -1; dx <= 1; dx++) {
     for (let dz = -1; dz <= 1; dz++) {
-      const corner = Math.abs(dx) + Math.abs(dz) === 2;
       const middle = dx === 0 && dz === 0;
-      // `middle` is excluded from the edge test: it is the beacon itself, and
-      // painting the accent over it is how a mast ends up topped with a hat.
-      const edge = !corner && !middle && (dx === 0 || dz === 0);
-      if (corner) {
-        into.set(blockKey(x + dx, topY, z + dz), P.seaLantern);
-        continue;
-      }
-      into.set(blockKey(x + dx, topY - 1, z + dz), edge ? accent : P.netheriteBlock);
-      into.set(blockKey(x + dx, topY - 2, z + dz), P.netheriteBlock);
-      if (edge) into.set(blockKey(x + dx, topY, z + dz), accent);
+      const corner = Math.abs(dx) + Math.abs(dz) === 2;
+      into.set(
+        blockKey(x + dx, topY, z + dz),
+        middle ? P.litBeacon : corner ? P.seaLantern : accent,
+      );
     }
   }
   return into;

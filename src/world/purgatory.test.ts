@@ -126,12 +126,13 @@ describe("the Purgatory office beacon", () => {
     expect(PURGATORY_OFFICE_BEACON.x).toBe(274);
     expect(PURGATORY_OFFICE_BEACON.z).toBe(283);
     const onto = plan();
-    // One column, plus the 3x3 collar at the top. A beacon is a mast with a
-    // crown on it; a crown that is one block wide is a hat.
+    // One column, plus the pyramid at the top. A beacon is a mast with a crown
+    // on it; a crown that is one block wide is a hat. The widest course is the
+    // 7x7 ring under the pyramid, so the whole plan is seven across.
     const columns = new Set<number>();
     for (const [key] of onto) columns.add(Math.floor(key / 1048576));
     const spread = [...columns].map((c) => c - 1024).sort((a, b) => a - b);
-    expect(spread, "the collar should be exactly three wide").toEqual([273, 274, 275]);
+    expect(spread, "the pyramid should be seven wide").toEqual([271, 272, 273, 274, 275, 276, 277]);
   });
 
   test("runs from the office floor to the top of the island", () => {
@@ -140,31 +141,40 @@ describe("the Purgatory office beacon", () => {
     // the highest block anywhere in the source.
     const onto = plan();
     expect(at(onto, PURGATORY_OFFICE_BEACON.baseY), "the mast does not start on the office floor").toBeDefined();
-    expect(at(onto, PURGATORY_OFFICE_BEACON.topY - 2), "the mast does not reach the roof").toBeDefined();
+    expect(at(onto, PURGATORY_OFFICE_BEACON.topY - 2), "the pyramid does not reach the roof").toBeDefined();
     expect(at(onto, PURGATORY_OFFICE_BEACON.baseY - 1), "the mast starts below the office floor").toBeUndefined();
-    expect(onto.size, "the plan is much smaller than a mast and a 3x3 collar").toBeGreaterThan(30);
+    expect(onto.size, "the plan is much smaller than a mast and a pyramid").toBeGreaterThan(30);
   });
 
   test("is lit at the top and banded all the way down", () => {
     const onto = plan();
     const { x, z, topY } = PURGATORY_OFFICE_BEACON;
     const at2 = (dx: number, y: number, dz: number) => onto.get((x + dx + 1024) * 1048576 + (z + dz + 1024) * 256 + y);
-    // The crown is a real, activated beacon block on a netherite collar -
-    // netherite is a beacon base material, which is what makes the beam render.
+    // The crown is a real, activated beacon block on a real beacon *pyramid*.
+    // The power is recomputed by the game from the blocks below on every chunk
+    // load, so a 3x3 collar scores zero however the state is written - the
+    // 5x5 below and the 3x3 above it are what actually light it.
     const crown = at2(0, topY, 0);
     expect(crown?.name, "the office beacon is not switched on").toBe(P.litBeacon.name);
     expect(crown?.states?.power_level).toBeGreaterThan(0);
     for (const [dx, dz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) {
       expect(at2(dx, topY, dz)?.name, "no lantern on the crown").toBe(P.seaLantern.name);
     }
-    for (const [dx, dz] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-      expect(at2(dx, topY - 2, dz)?.name, "the beacon has no netherite base under it").toBe(P.netheriteBlock.name);
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dz = -2; dz <= 2; dz++) {
+        expect(at2(dx, topY - 2, dz)?.name, "the beacon has no netherite base under it").toBe(P.netheriteBlock.name);
+      }
+    }
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        expect(at2(dx, topY - 1, dz)?.name, "the beacon has no iron tier under it").toBe(P.ironBlock.name);
+      }
     }
     // The banding. A plain 30-block stick of one glass is not a beacon, it is a
     // pillar, and the eye reads it as part of the building.
     let bands = 0;
     let accents = 0;
-    for (let y = PURGATORY_OFFICE_BEACON.baseY; y < topY - 2; y++) {
+    for (let y = PURGATORY_OFFICE_BEACON.baseY; y < topY - 5; y++) {
       const name = at(onto, y)?.name;
       if (name === P.netheriteBlock.name) bands++;
       if (name === PURGATORY_OFFICE_BEACON.accent.name) accents++;
@@ -184,6 +194,10 @@ describe("the Purgatory office beacon", () => {
       P.greenGlass.name,
       P.limeGlass.name,
       P.netheriteBlock.name,
+      // Iron is in the palette because the pyramid's second tier is iron.
+      // Without a real 5x5 base the beacon does not light at all, and a dark
+      // spire with no beam is not a stylistic choice.
+      P.ironBlock.name,
       P.seaLantern.name,
       P.litBeacon.name,
     ]);
