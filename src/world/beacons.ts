@@ -11,10 +11,18 @@
  *
  * So every landmark gets a mast: a slender, banded, *coloured* glass column
  * that rises out of the top of the building and punches up through the canopy
- * to a lantern crown at y123 - above every sheet in the sky, so it is the one
+ * to a netherite crown at y121 - above every sheet in the sky, so it is the one
  * thing in the world that is never behind glass.
  *
- * Three decisions that are not obvious:
+ * The crown is an actual **lit beacon block**, on a netherite base, with clear
+ * air above it: the request was for beacons *activated*, which is a real
+ * vanilla thing and not a lookalike. A beacon's power comes from the block
+ * under it - and netherite is one of the five pyramid materials - so the
+ * 3x3 netherite collar is not decoration, it is what makes the beam render.
+ * Because the state is written into the subchunk, the beam is there the moment
+ * the world loads rather than waiting for a player to feed it metal.
+ *
+ * Four decisions that are not obvious:
  *
  * 1. **It runs after the canopy, not before.** `buildSkyCanopy` is documented
  *    as "the last word in the sky" over the landmarks. If the beacons ran
@@ -28,7 +36,7 @@
  *    so "each one its own colour" cannot be satisfied by the hue alone. Each
  *    beacon is a `main` glass with an `accent` band: sixteen hues, each used
  *    with two or three different accents, and `beaconColoursAreUnique` asserts
- *    that no two landmarks share a pair. The crown is always `main`, so the
+ *    that no two landmarks share a pair. The collar is always `accent`, so the
  *    silhouette alone is still recognisable.
  *
  * 3. **The base is the building's own top, not the ground.** Anchoring at
@@ -44,10 +52,25 @@ import type { World } from "./world.ts";
 
 /**
  * The top of the mast itself. The build ceiling is y=127 and the canopy's
- * highest sheet is y=116, so a crown at 121-123 is clear of the glass and still
- * three blocks inside the buffer.
+ * highest sheet is y=116, so a crown at 121 is clear of the glass and still six
+ * blocks inside the buffer.
+ *
+ * Nothing is placed *above* the crown: an active beacon draws its beam from
+ * the block's own position upwards, and anything on top of it - the old
+ * glowstone flame - would cut the beam off one block above the glass. That is
+ * the whole reason this number moved down from 123.
  */
 export const BEACON_CROWN_Y = 121;
+
+/**
+ * Courses of 3x3 netherite under the beacon block.
+ *
+ * Netherite is one of the five beacon base materials, so this collar is not
+ * decoration: it is the block that makes the crown *lit* instead of a dead grey
+ * one. The upper course is inset with accent glass on its four edge midpoints
+ * so the collar is not a grey lump from the ground.
+ */
+export const BEACON_COLLAR = 2;
 
 /** Shortest mast worth building. Below this the crown crowds the roofline. */
 export const MIN_BEACON_HEIGHT = 8;
@@ -165,7 +188,10 @@ export function beaconMast(world: World, id: LandmarkId): BeaconMast {
 
 /** The block one course of a mast, given how far up it is. */
 export function beaconCourse(colours: BeaconColours, course: number): BlockState {
-  if (course % BAND_EVERY === 0) return P.obsidian;
+  // Netherite for the dark bands, not obsidian: the bands are the part of the
+  // mast that reads from the ground, and a mast that is worth flying to should
+  // be worth looking at on the way up.
+  if (course % BAND_EVERY === 0) return P.netheriteBlock;
   if (course % BAND_EVERY === 4) return colours.accent;
   return colours.main;
 }
@@ -180,18 +206,22 @@ export function buildBeacons(world: World): BeaconMast[] {
   const built: BeaconMast[] = [];
   for (const id of Object.keys(LANDMARKS) as LandmarkId[]) {
     const mast = beaconMast(world, id);
-    if (mast.crownY + 2 >= CONFIG.maxY) continue; // no room in the buffer
+    if (mast.crownY + 1 >= CONFIG.maxY) continue; // no room in the buffer
     buildBeacon(world, mast);
     built.push(mast);
   }
   return built;
 }
 
-/** One mast: banded glass, two accent halos, a lantern crown. */
+/** One mast: banded glass on a netherite spine, two accent halos, a lit crown. */
 export function buildBeacon(world: World, mast: BeaconMast): void {
   const { x, z, baseY, crownY, colours } = mast;
 
-  for (let y = baseY; y < crownY; y++) {
+  // The shaft stops two courses short of the crown: those two are the collar
+  // the beacon stands on, and a course of mast glass poking out of the middle
+  // of the collar would be the one block you can see the beam failing to start
+  // above.
+  for (let y = baseY; y < crownY - BEACON_COLLAR; y++) {
     world.set(x, y, z, beaconCourse(colours, y - baseY));
   }
 
@@ -210,27 +240,29 @@ export function buildBeacon(world: World, mast: BeaconMast): void {
     }
   }
 
-  // The crown: a 3x3 cap of the beacon's own colour on an obsidian collar, four
-  // sea lanterns on the corners and a glowstone flame on top. This is the part
-  // that is actually legible from another landmark, so it is the only part that
-  // emits light.
-  const collar = crownY - 1;
+  // The crown, from the top down: the lit beacon itself, a ring of sea lanterns
+  // on the corners of the course below it, then the netherite collar it stands
+  // on. The beam starts at the beacon and goes up, so the one course above the
+  // crown is deliberately left as air.
   for (let dz = -1; dz <= 1; dz++) {
     for (let dx = -1; dx <= 1; dx++) {
-      world.set(x + dx, collar, z + dz, P.obsidian);
-      world.set(x + dx, crownY, z + dz, Math.abs(dx) + Math.abs(dz) === 2 ? P.obsidian : colours.main);
+      const corner = Math.abs(dx) + Math.abs(dz) === 2;
+      const edge = !corner && (dx === 0 || dz === 0);
+      const middle = dx === 0 && dz === 0;
+      // crownY: the beacon, ringed by four sea lanterns and four accent panes.
+      world.set(
+        x + dx,
+        crownY,
+        z + dz,
+        middle ? P.litBeacon : corner ? P.seaLantern : colours.accent,
+      );
+      // crownY-1: netherite, with the four edge midpoints in the accent glass.
+      world.set(x + dx, crownY - 1, z + dz, edge ? colours.accent : P.netheriteBlock);
+      // crownY-2: solid netherite. This course is the beacon's base, and the
+      // only reason the crown is lit at all.
+      world.set(x + dx, crownY - 2, z + dz, P.netheriteBlock);
     }
   }
-  for (const [dx, dz] of [
-    [1, 1],
-    [1, -1],
-    [-1, 1],
-    [-1, -1],
-  ] as const) {
-    world.set(x + dx, crownY + 1, z + dz, P.seaLantern);
-  }
-  world.set(x, crownY + 1, z, P.seaLantern);
-  world.set(x, crownY + 2, z, P.glowstone);
 
   // Protect the single column so the detail pass cannot scatter debris up a
   // 60-block shaft. Radius 0 is deliberate: a wider protect would switch off

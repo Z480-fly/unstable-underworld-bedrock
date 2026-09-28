@@ -1136,3 +1136,97 @@ the kind of failure that reads as "the build passed".
 
 Full gate: typecheck clean, **99/99 tests**, palette OK, `world OK (40 checks)`,
 23/23 landmarks present and reachable, both `.mcpack` archives built and verified.
+
+---
+
+## Activated netherite beacons, the eyes, and the inside of the Veil Castle
+
+Three follow-ups on the beacon/castle pass, all of them corrections rather than
+additions.
+
+### The beacons are switched on
+
+"Colour beacon" was built as a lit *lookalike* — a glass cap with a glowstone on
+top. The user meant an actual beacon, activated, in netherite. All 23 masts (and
+the Purgatory office, which lives in `purgatory.ts`) now crown with a real
+`minecraft:beacon` block stored as `{ power_level: 1, target: 0 }`, on two
+courses of `minecraft:netherite_block`.
+
+The collar is not decoration: **netherite is one of the five vanilla beacon base
+materials**, so it is the block that makes the crown light, and because the state
+is written into the subchunk the beam renders on load rather than waiting for a
+player to feed the block metal. The mast's dark banding changed from obsidian to
+netherite for the same reason — it is the part you read from the ground.
+
+`BEACON_CROWN_Y` moved **123 → 121** and the glowstone flame on top was deleted.
+An active beacon draws its beam from its own block upward, so anything sitting on
+it cuts the beam off one block long — the first version was a perfectly good
+light and a beam you could not see. `NEGATIVE: nothing stands on a crown, or the
+beam is one block long` now fails if any of the 23 has a block above it.
+
+`target: 0` and the crown's height mean nobody on the ground is in range of the
+beacon's effect (crowns are at y121, the canopy tops out at y116), so the
+beacons are there to be seen rather than to buff anyone.
+
+### The eyes
+
+The green medallions on the reference castle were built as **roundels** — discs
+in a stone ring — and the user pointed out they are eyes. They are now almonds:
+`1 - |u/w|^1.8` for the lid line, so the lids meet in a point at each corner, with
+white sclera, a green/cyan iris, a black pupil and a **sea-lantern** catchlight
+(a lit block, not a white one, so the eye catches light at night). Nine of them:
+three across the great hall's west face, over each gate, in the tympanum over the
+rotunda door, and two laid flat — the forecourt paving and the rotunda dais.
+
+The negative test is the one that matters: at the height of the pupil, the cell
+4 blocks out is sclera and the cell 7 blocks out is stone. A disc fails that; an
+almond passes it. It is also what forces the shape, because a circle and an
+almond differ *only* at the corners.
+
+Two placement bugs this shook out:
+* the three hall eyes at ±9 **overlapped** the great one in the middle and fought
+  over the same blocks; the hall is 43 long and each eye is 13 wide, so ±14 is
+  the only spacing that fits three without them touching.
+* the gatehouse eye was originally drawn in `forecourt`, which runs *before*
+  `gatehouse` — so the gatehouse simply walled over it. Caught by a test that
+  samples the pupil.
+
+### The insides
+
+A build like this gets the inside wrong by default: every reference photograph
+was taken from outside, so nothing forces it to exist, and a player walks through
+the gate into four walls.
+
+* **Great hall** — laid floor and border course, a colonnade with a sea lantern in
+  every capital, pews in rows either side of the aisle, banners between the
+  window piers (skipping the axis, where the doors are), three chandeliers on
+  iron chains, a three-course tiered dais with a throne and a lectern on the
+  carpet.
+* **Both wings** — library galleries: a carpet runner, bookcases along both walls
+  in bays with a pier between them, hanging lanterns, refectory tables with stools.
+* **Rotunda** — a compass-rose floor in glass and stone, eight piers with lamps in
+  their capitals, a ring of six chandeliers, and the castle's flattest eye laid
+  on the dais with a sea lantern under the pupil.
+
+Three doorways now connect the spaces, and they are cut *last*: the wings and the
+drum are both built as solid masses and hollowed afterwards, so anything cut into
+a shared wall before they run is paved over by the room behind it. Two of them had
+exactly that bug — the wings' arcade is built one block *inside* the hall's east
+wall, and the drum's ring wall is two blocks thick on its axis, so each door
+opened onto a solid block. Reached with a BFS over standable cells (feet in air,
+floor solid, step-up and step-down moves) rather than by counting blocks, which
+is the only check that would have found either.
+
+The rotunda dais is one course and its eye is 5 across, not three courses and 7
+across: a two-course dais is a two-block wall, and an eye scaled up until its own
+stone socket covers the dais leaves the middle of the room as the one place in the
+castle you cannot stand in.
+
+### Files
+
+`src/world/veil_castle.test.ts` (new, 8 tests), `beacons.ts`, `veil_castle.ts`,
+`purgatory.ts`, `blocks.ts` (`litBeacon`), `validate-palette.ts` (`power_level`
+and `target` added to the known state vocabulary), `render-preview.ts`.
+
+Full gate: typecheck clean, **108/108 tests**, palette OK, `pack OK`,
+`world OK (40 checks)`, 23/23 landmarks present and reachable.

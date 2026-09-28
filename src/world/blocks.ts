@@ -234,6 +234,13 @@ export const P = {
   damagedAnvil: bs("minecraft:damaged_anvil"),
   lectern: bs("minecraft:lectern", { facing_direction: 0 }),
   netheriteBlock: bs("minecraft:netherite_block"),
+  // A *lit* beacon, for the sky masts. `power_level` is what makes the beam
+  // render and `target` picks which of the tier's effects it hands out; both
+  // are stored in the subchunk, so a beacon placed by the generator arrives
+  // already active rather than as a dead grey block waiting for a player to
+  // feed it iron. The masts crown at y121 with nothing above them, so nobody
+  // is ever in range of the effect anyway - it is there to be *seen*.
+  litBeacon: bs("minecraft:beacon", { power_level: 1, target: 0 }),
   warpedNylium: bs("minecraft:warped_nylium"),
   crimsonNylium: bs("minecraft:crimson_nylium"),
   warpedWart: bs("minecraft:warped_wart_block"),

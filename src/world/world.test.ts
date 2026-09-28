@@ -7,7 +7,7 @@ import { generateTerrain } from "./terrain.ts";
 import { buildAllAreas } from "./areas.ts";
 import { canopyCoverage, CANOPY_BAND } from "./sky_canopy.ts";
 import { SHEETS as CANOPY_SHEETS } from "./sky_canopy.ts";
-import { beaconCourse, beaconMast, BEACON_COLOURS, BEACON_CROWN_Y } from "./beacons.ts";
+import { beaconCourse, beaconMast, BEACON_COLOURS, BEACON_COLLAR, BEACON_CROWN_Y } from "./beacons.ts";
 import { VEIL_COURT } from "./veil_castle.ts";
 import { serializeSubChunk } from "../bedrock/subchunk.ts";
 import { buildSceneWorld } from "./scene.ts";
@@ -1070,28 +1070,58 @@ describe("the sky beacons", () => {
     for (const id of Object.keys(LANDMARKS) as Array<keyof typeof LANDMARKS>) {
       const mast = beaconMast(world, id);
       const colours = BEACON_COLOURS[id];
-      // The crown is the beacon's own colour, dead centre of the cap.
-      expect(
-        world.get(mast.x, mast.crownY, mast.z)?.name,
-        `${id}'s crown should be ${colours.main.name}`,
-      ).toBe(colours.main.name);
-      // ...crowned with light, or it is a coloured stripe and not a beacon.
-      expect(world.get(mast.x, mast.crownY + 1, mast.z)?.name, `${id} has no lantern`).toBe(P.seaLantern.name);
-      expect(world.get(mast.x, mast.crownY + 2, mast.z)?.name, `${id} has no glowstone`).toBe(P.glowstone.name);
+      // The crown is a real, *activated* beacon block - the request was for
+      // beacons switched on, and a lookalike is not one.
+      const crown = world.get(mast.x, mast.crownY, mast.z);
+      expect(crown?.name, `${id}'s crown should be a beacon block`).toBe(P.litBeacon.name);
+      expect(crown?.states?.power_level, `${id}'s beacon is not lit`).toBeGreaterThan(0);
+      // The netherite collar it stands on. Netherite is a beacon base material,
+      // so this course is what makes the beam render rather than decoration.
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          expect(
+            world.get(mast.x + dx, mast.crownY - BEACON_COLLAR, mast.z + dz)?.name,
+            `${id}'s beacon has no netherite base under it`,
+          ).toBe(P.netheriteBlock.name);
+        }
+      }
+      // ...ringed by lanterns, or it is a coloured stripe and not a beacon.
+      for (const [dx, dz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) {
+        expect(world.get(mast.x + dx, mast.crownY, mast.z + dz)?.name, `${id} has no lanterns`).toBe(P.seaLantern.name);
+      }
 
       // The shaft: banded, and carrying the accent somewhere along it.
       let bands = 0;
       let accents = 0;
       for (let y = mast.baseY; y < mast.crownY; y++) {
         const name = world.get(mast.x, y, mast.z)?.name;
-        if (name === P.obsidian.name) bands++;
+        if (name === P.netheriteBlock.name) bands++;
         if (name === colours.accent.name) accents++;
       }
-      expect(bands, `${id}'s mast has no dark banding`).toBeGreaterThan(1);
+      expect(bands, `${id}'s mast has no netherite banding`).toBeGreaterThan(1);
       expect(accents, `${id}'s mast never shows its accent colour`).toBeGreaterThan(0);
       // The banding has to be the shared one, or every mast is unique again.
-      expect(beaconCourse(colours, 0).name, "banding must be the shared obsidian course").toBe(P.obsidian.name);
+      expect(beaconCourse(colours, 0).name, "banding must be the shared netherite course").toBe(P.netheriteBlock.name);
     }
+  });
+
+  test("NEGATIVE: nothing stands on a crown, or the beam is one block long", () => {
+    // An active beacon draws its beam from its own block upwards. The first
+    // version of this crown had a glowstone flame on top of it, which is a
+    // perfectly good light and a beam you cannot see.
+    const world = generateWorld();
+    const capped: string[] = [];
+    for (const id of Object.keys(LANDMARKS) as Array<keyof typeof LANDMARKS>) {
+      const mast = beaconMast(world, id);
+      for (let y = mast.crownY + 1; y < CONFIG.maxY; y++) {
+        const name = world.get(mast.x, y, mast.z)?.name;
+        if (name && name !== AIR.name) {
+          capped.push(`${id} is capped at y${y} by ${name}`);
+          break;
+        }
+      }
+    }
+    expect(capped, `beacon crowns with something on top of them: ${capped.join("; ")}`).toEqual([]);
   });
 
   test("every crown stands clear of the canopy, so no beacon is behind glass", () => {

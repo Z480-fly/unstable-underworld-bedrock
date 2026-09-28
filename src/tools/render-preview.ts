@@ -31,7 +31,7 @@ import { createImage, encodePng, type Image } from "../bedrock/png.ts";
 import { colorAt } from "../world/decorate.ts";
 import { CONFIG } from "../world/config.ts";
 import { LANDMARKS, type LandmarkId } from "../world/layout.ts";
-import { BEACON_COLOURS, beaconMast } from "../world/beacons.ts";
+import { BEACON_COLOURS, beaconMast, BEACON_COLLAR } from "../world/beacons.ts";
 import { PURGATORY_OFFICE_BEACON, planOfficeBeacon } from "../world/purgatory.ts";
 import { buildSceneWorld } from "../world/scene.ts";
 import type { World } from "../world/world.ts";
@@ -183,20 +183,28 @@ export function beaconChart(world: World, slot = 26, pxPerY = 3): Image {
     const colours = BEACON_COLOURS[id];
     const main = glassRgb(colours.main.name);
     const accent = glassRgb(colours.accent.name);
-    for (let y = mast.baseY; y <= mast.crownY + 2; y++) {
+    for (let y = mast.baseY; y <= mast.crownY; y++) {
       const py = (top - y) * pxPerY;
-      const lit = y === mast.crownY + 1 || y === mast.crownY + 2;
+      // The crown is the beacon block itself, on a netherite collar: drawn as
+      // a lit cap over two dark courses, because that is what it is in the
+      // world and the chart is only worth having if it matches.
+      const lit = y === mast.crownY;
+      const collar = y >= mast.crownY - BEACON_COLLAR && y < mast.crownY;
       for (let dx = 0; dx < slot - 8; dx++) {
         const x = i * slot + 4 + dx;
+        const verify = world.get(mast.x, y, mast.z)?.name;
+        if (lit) {
+          put(image, x, py, dx < 3 || dx > slot - 12 ? [255, 244, 190] : [180, 150, 60]);
+          continue;
+        }
+        if (collar) {
+          put(image, x, py, y === mast.crownY - 1 && dx > 3 && dx < slot - 11 ? accent : [58, 52, 54]);
+          continue;
+        }
         if (y % 9 === 0 && dx < 4) {
           put(image, x, py, [30, 30, 38]);
           continue;
         }
-        if (lit) {
-          put(image, x, py, [255, 244, 190]);
-          continue;
-        }
-        const verify = world.get(mast.x, y, mast.z)?.name;
         put(image, x, py, y % 9 === 4 ? accent : verify ? main : [255, 0, 0]);
       }
     }
@@ -343,7 +351,7 @@ const VIEWS: { file: string; title: string; note: string }[] = [
   {
     file: "beacons.png",
     title: "Every landmark's beacon, in its own colour",
-    note: "One column per landmark, crown on top, drawn against the y92-116 canopy band. Red means the mast is missing from the voxel buffer.",
+    note: "One column per landmark: banded glass on a netherite spine, and a lit beacon block on a netherite collar at the top, drawn against the y92-116 canopy band. Red means the mast is missing from the voxel buffer.",
   },
   {
     file: "castle.png",

@@ -126,9 +126,12 @@ describe("the Purgatory office beacon", () => {
     expect(PURGATORY_OFFICE_BEACON.x).toBe(274);
     expect(PURGATORY_OFFICE_BEACON.z).toBe(283);
     const onto = plan();
+    // One column, plus the 3x3 collar at the top. A beacon is a mast with a
+    // crown on it; a crown that is one block wide is a hat.
     const columns = new Set<number>();
     for (const [key] of onto) columns.add(Math.floor(key / 1048576));
-    expect([...columns], "the beacon must be a single column, not a slab").toEqual([PURGATORY_OFFICE_BEACON.x + 1024]);
+    const spread = [...columns].map((c) => c - 1024).sort((a, b) => a - b);
+    expect(spread, "the collar should be exactly three wide").toEqual([273, 274, 275]);
   });
 
   test("runs from the office floor to the top of the island", () => {
@@ -136,30 +139,37 @@ describe("the Purgatory office beacon", () => {
     // Purgatory has no exterior to speak of until its roof at y282 - which is
     // the highest block anywhere in the source.
     const onto = plan();
-    expect(onto.size, "one course of glass per Y from base to top").toBe(
-      PURGATORY_OFFICE_BEACON.topY - PURGATORY_OFFICE_BEACON.baseY + 1,
-    );
     expect(at(onto, PURGATORY_OFFICE_BEACON.baseY), "the mast does not start on the office floor").toBeDefined();
     expect(at(onto, PURGATORY_OFFICE_BEACON.topY - 2), "the mast does not reach the roof").toBeDefined();
     expect(at(onto, PURGATORY_OFFICE_BEACON.baseY - 1), "the mast starts below the office floor").toBeUndefined();
+    expect(onto.size, "the plan is much smaller than a mast and a 3x3 collar").toBeGreaterThan(30);
   });
 
   test("is lit at the top and banded all the way down", () => {
     const onto = plan();
-    // The crown: a sea lantern under a glowstone, so the beacon is visible from
-    // the Underworld and not just a coloured line on a grey tower.
-    expect(at(onto, PURGATORY_OFFICE_BEACON.topY)?.name).toBe(P.glowstone.name);
-    expect(at(onto, PURGATORY_OFFICE_BEACON.topY - 1)?.name).toBe(P.seaLantern.name);
+    const { x, z, topY } = PURGATORY_OFFICE_BEACON;
+    const at2 = (dx: number, y: number, dz: number) => onto.get((x + dx + 1024) * 1048576 + (z + dz + 1024) * 256 + y);
+    // The crown is a real, activated beacon block on a netherite collar -
+    // netherite is a beacon base material, which is what makes the beam render.
+    const crown = at2(0, topY, 0);
+    expect(crown?.name, "the office beacon is not switched on").toBe(P.litBeacon.name);
+    expect(crown?.states?.power_level).toBeGreaterThan(0);
+    for (const [dx, dz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) {
+      expect(at2(dx, topY, dz)?.name, "no lantern on the crown").toBe(P.seaLantern.name);
+    }
+    for (const [dx, dz] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      expect(at2(dx, topY - 2, dz)?.name, "the beacon has no netherite base under it").toBe(P.netheriteBlock.name);
+    }
     // The banding. A plain 30-block stick of one glass is not a beacon, it is a
     // pillar, and the eye reads it as part of the building.
     let bands = 0;
     let accents = 0;
-    for (let y = PURGATORY_OFFICE_BEACON.baseY; y < PURGATORY_OFFICE_BEACON.topY - 1; y++) {
+    for (let y = PURGATORY_OFFICE_BEACON.baseY; y < topY - 2; y++) {
       const name = at(onto, y)?.name;
-      if (name === P.blackGlass.name) bands++;
+      if (name === P.netheriteBlock.name) bands++;
       if (name === PURGATORY_OFFICE_BEACON.accent.name) accents++;
     }
-    expect(bands, "the mast has no dark banding").toBeGreaterThan(2);
+    expect(bands, "the mast has no netherite banding").toBeGreaterThan(2);
     expect(accents, "the mast has no accent colour").toBeGreaterThan(2);
   });
 
@@ -170,10 +180,14 @@ describe("the Purgatory office beacon", () => {
     expect(PURGATORY_OFFICE_BEACON.main.name).toBe(P.greenGlass.name);
     expect(PURGATORY_OFFICE_BEACON.accent.name).toBe(P.limeGlass.name);
     const onto = plan();
-    const foreign = [...onto.values()].filter(
-      (b) => b.name !== P.greenGlass.name && b.name !== P.limeGlass.name && b.name !== P.blackGlass.name
-        && b.name !== P.seaLantern.name && b.name !== P.glowstone.name,
-    );
-    expect(foreign, "the beacon should only use its own four materials").toEqual([]);
+    const own = new Set([
+      P.greenGlass.name,
+      P.limeGlass.name,
+      P.netheriteBlock.name,
+      P.seaLantern.name,
+      P.litBeacon.name,
+    ]);
+    const foreign = [...onto.values()].filter((b) => !own.has(b.name));
+    expect(foreign, "the beacon should only use its own materials").toEqual([]);
   });
 });

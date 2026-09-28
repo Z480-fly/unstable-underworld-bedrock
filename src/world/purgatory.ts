@@ -142,7 +142,7 @@ export const PURGATORY_OFFICE_BEACON = {
   /** Purgatory's own colour, so it reads as part of the build and not as an import. */
   main: P.greenGlass,
   accent: P.limeGlass,
-  /** How many courses of glass between two dark bands. */
+  /** How many courses of glass between two dark netherite bands. */
   band: 7,
 } as const;
 
@@ -185,18 +185,44 @@ const blockKey = (x: number, y: number, z: number): number =>
  * accidentally the wrong colour, or that stops four blocks short of the roof,
  * still produces a column of *something* and would pass a "is there glass here"
  * check.
+ *
+ * The crown is the same netherite collar and *lit* beacon block the Underworld
+ * masts use, because a beacon that is switched off is not the thing that was
+ * asked for. Two courses of 3x3 netherite sit under the beacon - netherite is
+ * a beacon base material, which is what makes the beam render - and the course
+ * above the beacon is left empty, because a beam with a block on top of it is
+ * a beam one block long.
  */
 export function planOfficeBeacon(into: LightingPlan): LightingPlan {
   const { x, z, baseY, topY, main, accent, band } = PURGATORY_OFFICE_BEACON;
   for (let y = baseY; y <= topY; y++) {
     const course = y - baseY;
     let block: BlockState;
-    if (course === topY - baseY) block = P.glowstone;
+    if (course === topY - baseY) block = P.litBeacon;
     else if (course === topY - baseY - 1) block = P.seaLantern;
-    else if (course % band === 0) block = P.blackGlass;
+    else if (course % band === 0) block = P.netheriteBlock;
     else if (course % band === 3) block = accent;
     else block = main;
     into.set(blockKey(x, y, z), block);
+  }
+  // The 3x3 collar, drawn around the crown. The four edge midpoints of the
+  // upper course are accent glass so the collar carries the mast's colour up
+  // into the crown the same way the Underworld masts do.
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      const corner = Math.abs(dx) + Math.abs(dz) === 2;
+      const middle = dx === 0 && dz === 0;
+      // `middle` is excluded from the edge test: it is the beacon itself, and
+      // painting the accent over it is how a mast ends up topped with a hat.
+      const edge = !corner && !middle && (dx === 0 || dz === 0);
+      if (corner) {
+        into.set(blockKey(x + dx, topY, z + dz), P.seaLantern);
+        continue;
+      }
+      into.set(blockKey(x + dx, topY - 1, z + dz), edge ? accent : P.netheriteBlock);
+      into.set(blockKey(x + dx, topY - 2, z + dz), P.netheriteBlock);
+      if (edge) into.set(blockKey(x + dx, topY, z + dz), accent);
+    }
   }
   return into;
 }

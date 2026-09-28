@@ -85,7 +85,7 @@ roughly 26 blocks thick and tapers into nothing at its edges. North is `-Z`, eas
 | **The Ruins** | `40, -60` | Broken viaduct, collapsed arches, fallen columns, a single intact obelisk. |
 | **The Graveyard** | `-58, -78` | Grave rows, a ruined chapel, a crypt stair down to a lit burial chamber, dead trees. |
 | **The Nether Portal Lobby** | `-221, 133` | The walled green-stone court of **twenty** obsidian portal frames set into its long walls, entered through a great dark-oak door in a polished-andesite frame, gold ore glinting in the tuff. Re-sited to the coordinates in the reference screenshot; the causeway east from its door is the Veil Castle's approach. |
-| **The Veil Castle** | `-179, 133` | The one pale building in the Underworld: quartz and sandstone, blue and teal roofs, a drum and dome that push up into the canopy band, green stained-glass roundels over the great hall, and a purple carpet running the length of the causeway, through the gate and down the hall to the dais. Sited on the paved plaza in the placement screenshot. |
+| **The Veil Castle** | `-179, 133` | The one pale building in the Underworld: quartz and sandstone, blue and teal roofs, a drum and dome that push up into the canopy band, green stained-glass **eyes** over the great hall and flat in the plaza, and a purple carpet running the length of the causeway, through the gate and down the hall to the dais. Furnished throughout - pews, a throne, a library in each wing, a compass-rose rotunda under the dome. Sited on the paved plaza in the placement screenshot. |
 | **The Citadel** | `-158, 40` | The great library: three floors of shelves around a domed atrium open to the dark sky, and the exit stairwell with its ladder and broken bedrock. |
 | **The Pit / Tomb of the Mage of the Deep** | `-158, -70` | Statue-ringed pit with a spiral ramp, sculk tomb with sensors and shriekers, muffled corridors out, and the lava-trap corridor on the surface. |
 | **The Void Castles** | `-78…-102, 36…42` | Three floating castle islands in the western gulf, each holding an escape room (redstone-lamp floor, flooded maze, copper-bulb and slime floor), linked only by **glass bridges**. |
@@ -156,10 +156,24 @@ straight from screenshots:
 * **The Veil Castle** (`-179, 133`) - sited on the paved plaza in the placement screenshot
   (`Position: -179, 46, 133`), which is now its forecourt. It is the **only pale building in the
   Underworld**: quartz and sandstone where everything else is grey and black, blue and teal roofs, a
-  drum and dome carried up to y104 so the spires push into the canopy band, circular green-glass
-  roundels over the great hall, and a purple carpet running the whole 55-block approach - causeway,
-  gate, outer court, hall - to a dais at the back. The castle's west gate faces the portal court
-  across the causeway.
+  drum and dome carried up to y104 so the spires push into the canopy band, and a purple carpet running
+  the whole 55-block approach - causeway, gate, outer court, hall - to a dais at the back. The castle's
+  west gate faces the portal court across the causeway.
+
+  The building is **furnished**, which is the part a build like this gets wrong by
+  default: every reference photograph was taken from outside, so nothing forces the inside to exist.
+  The great hall has a colonnade, pews in rows either side of the aisle, banners, three chandeliers on
+  chains, a tiered dais and a throne; both wings are library galleries with bookcases and refectory
+  tables; the rotunda under the dome has a compass-rose floor in glass and stone, eight piers and a ring
+  of chandeliers. Three doorways connect them, and they are checked as *walkable* rather than by
+  counting blocks - a door cut before the room behind it is built gets paved over again.
+
+  The green medallions on the facade are **eyes**, not roundels: an almond of white sclera with a
+  green iris, a black pupil and a sea-lantern catchlight, in a chiselled sandstone socket. Nine of them -
+  three across the great hall's west face, one over each gate, one in the tympanum over the rotunda
+  door, and two laid flat, one in the forecourt paving and one on the rotunda dais looking up into the
+  dome. A circle in a stone ring is a rose window; a circle with a pupil is a face, and a test pins the
+  lid line shut at the corners so the difference cannot regress.
 * **The Nether Portal Lobby** (`-221, 133`) - re-sited from the old blackstone plaza at
   `-158, 140` to the coordinates in the reference screenshot (`Position: -219, 45, 125`) and re-faced
   to match it: a walled court of green deepslate and tuff with gold ore in the stone, the **twenty**
@@ -169,11 +183,19 @@ straight from screenshots:
 
 ### Sky beacons
 
-Every landmark has a **colour beacon**: a slender, banded mast of stained glass that rises out of the
-top of the building and punches up through the canopy to a lantern crown at y123, above every sheet in
-the sky. It is the one thing in the world that is never behind glass, which is the point - the Underworld
-is a near-flat grey plate under a sheet of overlapping glass, and before this there was no way to tell
-where you were from the air.
+Every landmark has a **colour beacon**: a slender, banded mast of stained glass on a netherite spine
+that rises out of the top of the building and punches up through the canopy to a crown at y121, above
+every sheet in the sky. It is the one thing in the world that is never behind glass, which is the point
+- the Underworld is a near-flat grey plate under a sheet of overlapping glass, and before this there was
+no way to tell where you were from the air.
+
+The crown is a real `minecraft:beacon` block stored with `power_level: 1`, standing on two courses of
+netherite. Netherite is one of the five vanilla beacon base materials, so the collar is what makes the
+beacon *activated* rather than a lookalike, and because the state is written into the subchunk the beam
+renders the moment the world loads. The crown sits at y121 rather than y123 with nothing on top of it,
+because an active beacon draws its beam from its own block upward and anything above it - the glowstone
+flame that used to be there - cuts the beam off one block long. A test fails if any crown has a block
+over it.
 
 There are sixteen stained glasses and twenty-three landmarks, so each beacon is a `main` colour with an
 `accent` band and every *pair* is unique; `bun test` asserts that no two landmarks share one. The
@@ -186,7 +208,8 @@ Purgatory gets its own, built inside the transplant rather than in `beacons.ts`:
 tower with no exterior, so a mast in the sky would be useless. Instead a green glass column stands in
 the middle of the office rotunda at source-local (274, 283) - the room in the `Position: -623, 270, 23`
 screenshot - runs from its floor at y251 up through the storeys above and out onto the roof at y282,
-which is the top of the island and the only thing on Purgatory visible from the Underworld.
+where it ends in the same netherite collar and lit beacon block, the top of the island and the only
+thing on Purgatory visible from the Underworld.
 
 ### The wasteland between the set pieces
 
