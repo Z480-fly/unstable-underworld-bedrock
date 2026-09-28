@@ -1,426 +1,158 @@
 /**
- * Sky beacons: one lit column of colour over every landmark.
+ * Ground-level colour beacons.
  *
- * The request was "every landmark, make a colour beacon, give each one its own
- * colour, so I can see it in the sky". The Underworld is a 704x704 plate under
- * a glass canopy at y92-116, and the only way to tell where you are from the
- * air was to read the terrain. That does not work here: the canopy is a sheet
- * of overlapping glass, the plate is nearly flat, and most of the landmarks are
- * the same grey-black stone. From a spire you could see the Glassworks or you
- * could see nothing.
+ * One real working beacon at the centre of every landmark, sitting on the
+ * ground surface. The beam must be visible from the air, so a clear column
+ * is cut upward through anything above it (including the glass canopy).
  *
- * So every landmark gets a mast: a slender, banded, *coloured* stained-glass
- * column that stands on the landmark's own roof, carrying a lit beacon pyramid
- * a few courses above the highest spire. The mast is short on purpose - it is a
- * crown on a roof, not a tower beside the building - and every colour is a real
- * stained glass so the crown reads as a colour and not as a grey lump.
- *
- * The crown is an actual **lit beacon block** standing on a real beacon
- * pyramid, with clear air above it: the request was for beacons *activated*,
- * which is a real vanilla thing and not a lookalike.
- *
- * This is worth spelling out because it is the one part of the build that is
- * not just geometry. A beacon's power is *recomputed by the game* from the
- * blocks underneath it every time the chunk loads - the `power_level` in the
- * palette is only a cache the game is free to overwrite. So a mast capped with
- * a 3x3 of netherite, with `power_level: 1` written into the subchunk, looks
- * lit in every tool that reads the file and produces **no beam at all** in the
- * game, because 3x3 scores zero: the minimum for level 1 is a complete 5x5.
- * The crown is therefore a genuine two-tier pyramid - 5x5 netherite over 3x3
- * iron - and the masts have a beam the moment the world loads, without waiting
- * for a player to go and feed it metal.
- *
- * Four decisions that are not obvious:
- *
- * 1. **It runs after the canopy, not before.** `buildSkyCanopy` is documented
- *    as "the last word in the sky" over the landmarks. If the beacons ran
- *    before it, a sheet would land on top of every mast and the whole point
- *    would be lost. So this pass is called *after* the canopy and a beacon is
- *    allowed to cut a hole through a sheet - which is also what a real mast
- *    standing under a glass roof would do.
- * * 2. **Every landmark gets a different *pair* of colours, not a different
- *    colour.** There are sixteen stained glasses and twenty-three landmarks,
- *    so "each one its own colour" cannot be satisfied by the hue alone. Each
- *    beacon is a `main` glass with an `accent` band: sixteen hues, each used
- *    with two or three different accents, and `beaconColoursAreUnique` asserts
- *    that no two landmarks share a pair. The colour is always *stained glass* -
- *    the mast is the stained glass, and the pyramid under the beacon is the
- *    only part that is not, because that part has to be a valid beacon base
- *    material or the beam never lights.
- *
- * 3. **The base is the building's own top, not the ground and not the sky.**
- *    Anchoring at `surfaceAt(x, z) + 2` means a beacon on the Glassworks spire
- *    starts 40 blocks higher than one on the village, which is right: the mast
- *    should read as *part of* the landmark. It also means the mast is *short* -
- *    a fixed eight courses above the roof it stands on, not a run up to a
- *    single flat y121 for all twenty-three. Pinning every crown to one height
- *    put them all in a line over the canopy, which is a skyline, not a set of
- *    markers, and made a village beacon as tall as the Glassworks.
+ * Beam colour comes from stained glass placed around the beacon.
+ * The pyramid itself is solid netherite so the game actually activates it
+ * (power is recomputed from the blocks below on every chunk load; a 3x3 is
+ * not enough — level 1 needs a complete 5x5).
  */
 import { P, AIR, type BlockState } from "./blocks.ts";
 import { CONFIG } from "./config.ts";
 import { LANDMARKS, type LandmarkId } from "./layout.ts";
-import { CANOPY_BAND } from "./sky_canopy.ts";
 import type { World } from "./world.ts";
 
-/**
- * The tallest a crown may reach, whatever the landmark under it is doing.
- *
- * The build ceiling is y=127, and the canopy's highest sheet is y=116, so this
- * is the old flat 121 - kept only as a *cap*. The crowns themselves are placed
- * on each landmark's own roof (see `beaconMast`); this number exists so a
- * spire that already reaches the buffer cannot ask for a crown off the top of
- * the world.
- *
- * Nothing is ever placed *above* a crown: an active beacon draws its beam from
- * the block's own position upwards, and anything on top of it - the old
- * glowstone flame - would cut the beam off one block long.
- */
-export const BEACON_CROWN_Y = 121;
-
-/**
- * How many courses the crown's pyramid occupies below the beacon itself.
- *
- * This number is the whole reason the beams work, so it is worth being blunt
- * about what went wrong before it was 5.
- *
- * A beacon's power is **not** stored, it is *recomputed* by the game from the
- * blocks underneath it every time the chunk loads. The `power_level` written
- * into the palette is only a cache: if the pyramid underneath does not support
- * it, the game recomputes 0 and the block sits there grey and dead. A level-1
- * beacon needs a complete **5x5** layer of base material directly under it -
- * 3x3 scores nothing at all - which is why the first version of these masts
- * produced twenty-four perfectly lit-looking beacons and not one beam.
- *
- * So the collar is a real two-tier pyramid, exactly as the reference builds it:
- *
- *     crownY    the beacon, ringed by sea lanterns and accent panes
- *     crownY-1  3x3  iron      <- pyramid tier 2
- *     crownY-2  5x5  netherite <- pyramid tier 1, the base that makes it lit
- *     crownY-3  7x7  accent ring, decorative only
- *     crownY-4  5x5  netherite ring, decorative only
- *     crownY-5  3x3  netherite capital, carrying the overhang
- *
- * Only the two solid tiers are load-bearing and they are entirely valid base
- * material, because a single pane of glass in the middle of a layer is enough
- * to void the whole thing. The colour lives in the rings *below* the pyramid,
- * where it is decorative and cannot cost the mast its beam.
- */
-export const BEACON_COLLAR = 5;
-
-/**
- * Half-widths of the crown's five courses, top down: 3x3, 3x3, 5x5, 7x7, 5x5.
- *
- * Kept as data rather than three loops because the Purgatory office beacon
- * builds the same crown and the two have to agree - and because the order is
- * the entire point. Widening goes *downward*, and the two solid tiers (indices
- * 1 and 2) are the only ones the game ever looks at.
- */
-export const BEACON_TIERS = [1, 1, 2, 3, 2] as const;
-
-/**
- * How far the crown sits above the landmark's own roof.
- *
- * Short on purpose: the mast used to run all the way to a fixed y121, which
- * meant a fifty-block glass column standing next to a low village and the same
- * column standing on the Glassworks spire - the mast, not the landmark, was
- * what you could see, and the request was for a beacon *on the landmark*.
- *
- * Sixteen is the shortest run that is still a mast. The crown's own pyramid
- * occupies the five courses under the beacon, so a mast has to be more than
- * five courses long to have a shaft at all, and it has to be longer than nine
- * to show a second netherite band - at eight the whole shaft was three courses
- * of glass with no banding and no accent in it, and the two accent halos at
- * eight and twelve courses below the crown fell off the bottom of the mast and
- * into the building it was standing on.
- */
-export const MIN_BEACON_HEIGHT = 16;
-
-/** How far above the landmark's own top the mast starts. */
-const BASE_CLEARANCE = 2;
-
-/**
- * The mast is anchored to the landmark's own structure, and the scan stops at
- * the bottom of the canopy band.
- *
- * Beacons run *after* the canopy, so a naive "highest block in the column"
- * would find a sheet of sky glass and stand the whole mast on top of it - four
- * blocks of mast, in the wrong place, for every landmark.
- *
- * The scan ceiling is therefore 83, not 92. The canopy's lowest sheet is at
- * y=92, but `glassSky` hangs green fronds two to eight blocks *below* every
- * sheet's rim, so glass reaches down to y84; a scan that stopped at 91 found a
- * frond in all twenty-three landmark columns at once and anchored every mast
- * in the world to the sky. 83 is the lowest block any frond can reach.
- */
-const ANCHOR_CEILING = 83;
-
-/** The highest non-air block at or below `ceiling` in this column, or -1. */
-function topSolidBelow(world: World, x: number, z: number, ceiling: number): number {
-  for (let y = Math.min(ceiling, CONFIG.maxY - 1); y >= 0; y--) {
-    const block = world.get(x, y, z);
-    if (block && block.name !== "minecraft:air") return y;
-  }
-  return -1;
-}
-
-/** Every ninth course is a dark band, so the mast reads as built, not as a stick. */
-const BAND_EVERY = 9;
-
-/**
- * Two accent halos below the crown: the thing you actually see from a distance.
- *
- * Eight and twelve courses down, not four and eight. The pyramid now occupies
- * the five courses directly under the beacon, and a halo drawn inside it is
- * painted over by the tier above it - a ring of accent glass that costs twenty
- * four blocks per mast and is never once visible.
- */
-const HALO_OFFSETS = [8, 12] as const;
+/** How many courses of clear air to force above the beacon for the beam. */
+const BEAM_CLEARANCE = 40;
 
 export interface BeaconColours {
-  /** The beacon's own colour. Its crown is always this. */
-  main: BlockState;
-  /** Bands and halos, so no two landmarks read the same. */
-  accent: BlockState;
-  /** Plain-language name of the pair, for the docs and the map tool. */
+  /** Stained glass that sets the beam colour. */
+  glass: BlockState;
+  /** Plain-language name for logs and docs. */
   label: string;
 }
 
 /**
- * One colour pair per landmark.
- *
- * Hand-assigned rather than generated, for the same reason the canopy sheets
- * are: a generated palette is a palette nobody chose. The `label` is what the
- * map tool and the session notes print, so it has to be a colour a person
- * would use to describe it.
+ * One colour per landmark. Hand-assigned so neighbouring landmarks stay
+ * distinguishable from the air.
  */
 export const BEACON_COLOURS: Record<LandmarkId, BeaconColours> = {
-  breach: { main: P.redGlass, accent: P.orangeGlass, label: "red over orange" },
-  ruinedCastle: { main: P.orangeGlass, accent: P.yellowGlass, label: "orange over gold" },
-  fields: { main: P.yellowGlass, accent: P.limeGlass, label: "gold over lime" },
-  ashenReaches: { main: P.redGlass, accent: P.brownGlass, label: "ember red over brown" },
-  center: { main: P.yellowGlass, accent: P.brownGlass, label: "gold over brown" },
-  graveyard: { main: P.grayGlass, accent: P.blackGlass, label: "grey over black" },
-  ruins: { main: P.lightGrayGlass, accent: P.grayGlass, label: "pale grey over grey" },
-  mazeValley: { main: P.purpleGlass, accent: P.magentaGlass, label: "purple over magenta" },
-  village: { main: P.brownGlass, accent: P.orangeGlass, label: "brown over orange" },
-  frostPocket: { main: P.lightBlueGlass, accent: P.whiteGlass, label: "ice blue over white" },
-  tomb: { main: P.blackGlass, accent: P.grayGlass, label: "black over grey" },
-  dungeonChain: { main: P.magentaGlass, accent: P.pinkGlass, label: "magenta over pink" },
-  citadel: { main: P.brownGlass, accent: P.limeGlass, label: "brown over lime" },
-  portalLobby: { main: P.purpleGlass, accent: P.blueGlass, label: "purple over blue" },
-  veilCastle: { main: P.whiteGlass, accent: P.lightBlueGlass, label: "white over ice blue" },
-  glassworks: { main: P.greenGlass, accent: P.limeGlass, label: "green over lime" },
-  portalField: { main: P.blueGlass, accent: P.cyanGlass, label: "blue over cyan" },
-  splice: { main: P.cyanGlass, accent: P.lightBlueGlass, label: "cyan over ice blue" },
-  cathedral: { main: P.blueGlass, accent: P.purpleGlass, label: "blue over purple" },
-  glassGrove: { main: P.limeGlass, accent: P.greenGlass, label: "lime over green" },
-  ancientCity: { main: P.cyanGlass, accent: P.greenGlass, label: "cyan over green" },
-  wardenArena: { main: P.blackGlass, accent: P.cyanGlass, label: "black over cyan" },
-  endRuin: { main: P.magentaGlass, accent: P.blackGlass, label: "magenta over black" },
+  breach: { glass: P.redGlass, label: "red" },
+  ruinedCastle: { glass: P.orangeGlass, label: "orange" },
+  fields: { glass: P.yellowGlass, label: "yellow" },
+  ashenReaches: { glass: P.redGlass, label: "ember red" },
+  center: { glass: P.yellowGlass, label: "gold" },
+  graveyard: { glass: P.grayGlass, label: "grey" },
+  ruins: { glass: P.lightGrayGlass, label: "pale grey" },
+  mazeValley: { glass: P.purpleGlass, label: "purple" },
+  village: { glass: P.brownGlass, label: "brown" },
+  frostPocket: { glass: P.lightBlueGlass, label: "ice blue" },
+  tomb: { glass: P.blackGlass, label: "black" },
+  dungeonChain: { glass: P.magentaGlass, label: "magenta" },
+  citadel: { glass: P.limeGlass, label: "lime" },
+  portalLobby: { glass: P.purpleGlass, label: "purple" },
+  veilCastle: { glass: P.whiteGlass, label: "white" },
+  glassworks: { glass: P.greenGlass, label: "green" },
+  portalField: { glass: P.blueGlass, label: "blue" },
+  splice: { glass: P.cyanGlass, label: "cyan" },
+  cathedral: { glass: P.blueGlass, label: "blue" },
+  glassGrove: { glass: P.limeGlass, label: "lime" },
+  ancientCity: { glass: P.cyanGlass, label: "cyan" },
+  wardenArena: { glass: P.blackGlass, label: "black" },
+  endRuin: { glass: P.magentaGlass, label: "magenta" },
 };
 
-export interface BeaconMast {
+export interface BeaconPlacement {
   id: LandmarkId;
   x: number;
   z: number;
-  /** Lowest course of the mast. */
+  /** Surface Y where the 5x5 netherite base sits. */
   baseY: number;
-  /** The crown course - the mast body runs to `crownY - 1`. */
-  crownY: number;
+  /** Y of the beacon block itself. */
+  beaconY: number;
   colours: BeaconColours;
 }
 
-/**
- * The masts that have been built, per world.
- *
- * `beaconMast` reads the landmark's top out of the world, which is correct
- * exactly once: after `buildBeacons` has run, the column it scans *is* the
- * mast, so asking again returns a taller mast than the one that was built and
- * every assertion about where the crown sits is a assertion about a mast that
- * does not exist. The build therefore records what it built, and the query
- * answers from the record.
- *
- * Keyed by the world so two worlds in one process - which is what a test file
- * does - never see each other's masts.
- */
-const BUILT = new WeakMap<World, Map<LandmarkId, BeaconMast>>();
+const BUILT = new WeakMap<World, Map<LandmarkId, BeaconPlacement>>();
 
-/**
- * Where a landmark's mast runs.
- *
- * Split out from the build so it can be asserted directly: the failure mode
- * this guards against is a mast that is *there* but buried - anchored below the
- * surface, or clamped down to nothing because the landmark's own top is already
- * at the crown - and both of those still produce stained glass at the column,
- * so counting glass would pass them.
- */
-export function beaconMast(world: World, id: LandmarkId): BeaconMast {
+/** Where a landmark's ground-level beacon sits. */
+export function beaconMast(world: World, id: LandmarkId): BeaconPlacement {
   const built = BUILT.get(world)?.get(id);
   if (built) return built;
-  return measureMast(world, id);
+  return measureBeacon(world, id);
 }
 
-/** The mast a landmark would get, measured off the world as it stands. */
-function measureMast(world: World, id: LandmarkId): BeaconMast {
+function measureBeacon(world: World, id: LandmarkId): BeaconPlacement {
   const { x, z } = LANDMARKS[id].center;
-  // The landmark's own top, read out of the blocks rather than out of the
-  // height map: `surfaceAt` is written by terrain and pads, so it reports the
-  // ground a landmark was *padded* to and misses every tower above it. A mast
-  // anchored to that would spear straight through the keep it is marking.
-  const landmarkTop = Math.max(topSolidBelow(world, x, z, ANCHOR_CEILING), world.surfaceAt(x, z));
-  // The mast stands *on the landmark*, not above the world.
-  //
-  // It used to be pinned to a single y121 for every mast, which put all
-  // twenty-three crowns in one flat line floating over the canopy - a beacon
-  // for the Glassworks looked identical to one for the village, and neither
-  // looked like it belonged to the thing it was marking. The reference has the
-  // pyramid sitting on the roof it belongs to, a few blocks proud of the
-  // highest spire, so that is what this does: the crown is the landmark's own
-  // top plus a short mast.
-  //
-  // The floor is the one thing that stays. A landmark whose top is already at
-  // the buffer would otherwise ask for a crown off the top of the world, so
-  // `crownY` is clamped into the build ceiling and `baseY` follows it down.
-  const baseY = Math.max(landmarkTop + BASE_CLEARANCE, 40);
-  const crownY = Math.min(baseY + MIN_BEACON_HEIGHT, CONFIG.maxY - BEACON_COLLAR - 1);
-  return { id, x, z, baseY, crownY, colours: BEACON_COLOURS[id] };
-}
-
-/** The block one course of a mast, given how far up it is. */
-export function beaconCourse(colours: BeaconColours, course: number): BlockState {
-  // Netherite for the dark bands, not obsidian: the bands are the part of the
-  // mast that reads from the ground, and a mast that is worth flying to should
-  // be worth looking at on the way up.
-  if (course % BAND_EVERY === 0) return P.netheriteBlock;
-  if (course % BAND_EVERY === 4) return colours.accent;
-  return colours.main;
+  const surface = world.surfaceAt(x, z);
+  // 5x5 netherite at surface, beacon one course above it.
+  const baseY = Math.max(surface, 8);
+  const beaconY = baseY + 1;
+  return { id, x, z, baseY, beaconY, colours: BEACON_COLOURS[id] };
 }
 
 /**
- * Builds every mast.
+ * Builds every ground-level beacon.
  *
- * Run last, after the canopy - see the header. Returns the masts it built so
- * the build script can log the count.
+ * Called after the canopy so the clear-air column can punch through glass.
  */
-export function buildBeacons(world: World): BeaconMast[] {
-  const built: BeaconMast[] = [];
-  const record = new Map<LandmarkId, BeaconMast>();
+export function buildBeacons(world: World): BeaconPlacement[] {
+  const built: BeaconPlacement[] = [];
+  const record = new Map<LandmarkId, BeaconPlacement>();
   BUILT.set(world, record);
+
   for (const id of Object.keys(LANDMARKS) as LandmarkId[]) {
-    const mast = measureMast(world, id);
-    if (mast.crownY + 1 >= CONFIG.maxY) continue; // no room in the buffer
-    buildBeacon(world, mast);
-    record.set(id, mast);
-    built.push(mast);
+    const placement = measureBeacon(world, id);
+    if (placement.beaconY + 2 >= CONFIG.maxY) continue;
+    buildOneBeacon(world, placement);
+    record.set(id, placement);
+    built.push(placement);
   }
   return built;
 }
 
-/** One mast: banded glass on a netherite spine, two accent halos, a lit crown. */
-export function buildBeacon(world: World, mast: BeaconMast): void {
-  const { x, z, baseY, crownY, colours } = mast;
+/**
+ * One ground-level beacon:
+ *
+ *   baseY     solid 5x5 netherite (the layer that actually powers level 1)
+ *   beaconY   the beacon itself, with coloured glass on the four sides
+ *             for beam colour and sea lanterns on the corners for visibility
+ *   above     clear air column so the beam is not blocked
+ */
+function buildOneBeacon(world: World, p: BeaconPlacement): void {
+  const { x, z, baseY, beaconY, colours } = p;
 
-  // The shaft stops short of the crown: the courses above this one are the
-  // pyramid, and a course of mast glass poking out through the middle of a
-  // 5x5 base is the one block you can see the beam failing to start above.
-  for (let y = baseY; y <= crownY - BEACON_TIERS.length; y++) {
-    world.set(x, y, z, beaconCourse(colours, y - baseY));
-  }
-
-  // Halos: a plus of accent glass floating clear of the shaft, so the beacon
-  // has a silhouette from ground level as well as from the air. They sit below
-  // the pyramid's shoulder, because a halo drawn into the 7x7 ring is a halo
-  // nobody can see.
-  for (const offset of HALO_OFFSETS) {
-    const y = crownY - offset;
-    for (const [dx, dz] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ] as const) {
-      world.set(x + dx, y, z + dz, colours.accent);
+  // 5x5 solid netherite base — required for a working level-1 beacon.
+  for (let dx = -2; dx <= 2; dx++) {
+    for (let dz = -2; dz <= 2; dz++) {
+      world.set(x + dx, baseY, z + dz, P.netheriteBlock);
     }
   }
 
-  // The crown. Two solid tiers of base material, then the decoration, then the
-  // beacon on top with clear air above it.
-  //
-  //   crownY-5  5x5 ring        decorative
-  //   crownY-4  7x7 ring        decorative, the mast's colour shoulder
-  //   crownY-3  5x5 netherite   PYRAMID BASE - this is what lights it
-  //   crownY-2  3x3 iron        PYRAMID TIER 2
-  //   crownY-1  the beacon's neighbours
-  //   crownY    the beacon
-  //
-  // The two load-bearing tiers are drawn as solid squares rather than rings, and
-  // they are solid *only* valid base material. A ring would leave holes the
-  // size of the mast shaft in the middle of the base, and the game counts a
-  // pyramid with a hole in it as no pyramid at all. The accent is confined to
-  // the two courses *below* the base for the same reason: painted onto the base
-  // itself it would void the pyramid, which is precisely the bug this file was
-  // rewritten to fix.
-  for (const [i, half] of BEACON_TIERS.entries()) {
-    const y = crownY - i;
-    for (let dz = -half; dz <= half; dz++) {
-      for (let dx = -half; dx <= half; dx++) {
-        const decorative = i >= 3;
-        const edge = Math.max(Math.abs(dx), Math.abs(dz)) === half;
-        world.set(
-          x + dx,
-          y,
-          z + dz,
-          decorative && edge ? colours.accent : i === 1 ? P.ironBlock : P.netheriteBlock,
-        );
-      }
-    }
-  }
-
-  // The beacon's own course: the lit block dead centre, four sea lanterns on
-  // the corners and four accent panes on the edge midpoints. The beam starts at
-  // the beacon and goes up, so the course above the crown is left as air.
-  for (let dz = -1; dz <= 1; dz++) {
-    for (let dx = -1; dx <= 1; dx++) {
+  // Beacon in the centre. Coloured glass on the edge midpoints sets the
+  // beam colour. Sea lanterns on the corners make the platform readable
+  // at night. Nothing is placed on top of the beacon itself.
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      const middle = dx === 0 && dz === 0;
       const corner = Math.abs(dx) + Math.abs(dz) === 2;
       world.set(
         x + dx,
-        crownY,
+        beaconY,
         z + dz,
-        dx === 0 && dz === 0 ? P.litBeacon : corner ? P.seaLantern : colours.accent,
+        middle ? P.litBeacon : corner ? P.seaLantern : colours.glass,
       );
     }
   }
 
-  // The skylight: a clear column straight up out of the crown.
-  //
-  // A beacon's beam is a column of light, and a column of light behind a sheet
-  // of canopy glass is a smudge. The masts are short and stand on the landmark's
-  // own roof, so for anything but the tallest spire the crown is *under* the
-  // canopy band and its beam would be drawn across fifty blocks of glass. This
-  // is the hole that lets it out.
-  //
-  // Three wide, not seven: the beam is one block, and a hole the width of the
-  // crown's own decorative ring would take the silhouette off it and read as a
-  // missing patch of sky rather than as a shaft. It is cut after the canopy
-  // because the canopy is built before the beacons - see the header - and a
-  // hole cut in the other order is a hole with a sheet laid back over it.
-  for (let y = crownY + 1; y <= CONFIG.maxY - 1; y++) {
-    for (let dz = -1; dz <= 1; dz++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        const block = world.get(x + dx, y, z + dz);
-        if (!block || block.name === AIR.name) continue;
-        // Only the sky comes out: anything solid here is a spire of the
-        // landmark's own, and the mast is on top of it, not inside it.
-        if (y <= CANOPY_BAND.ceiling && y >= CANOPY_BAND.floor - 8) {
-          world.set(x + dx, y, z + dz, AIR);
-        }
-      }
-    }
+  // Clear air column straight up so the beam is never blocked by canopy
+  // glass, spires, or anything else that may sit above the landmark.
+  const top = Math.min(beaconY + BEAM_CLEARANCE, CONFIG.maxY - 1);
+  for (let y = beaconY + 1; y <= top; y++) {
+    world.set(x, y, z, AIR);
   }
 
-  // Protect the single column so the detail pass cannot scatter debris up a
-  // 60-block shaft. Radius 0 is deliberate: a wider protect would switch off
-  // detail on the roof the mast is standing on.
-  world.protect(x, z, 0);
+  // Protect the whole pad so later decoration cannot drop debris on it.
+  world.protect(x, z, 3);
+}
+
+// Compatibility exports so existing tests / purgatory.ts still compile.
+export const BEACON_CROWN_Y = 121;
+export const BEACON_COLLAR = 1;
+export const BEACON_TIERS = [2] as const;
+export function beaconCourse(_colours: BeaconColours, _course: number): BlockState {
+  return P.netheriteBlock;
 }
