@@ -18,6 +18,16 @@ import type { World } from "./world.ts";
 /** How many courses of clear air to force above the beacon for the beam. */
 const BEAM_CLEARANCE = 40;
 
+/**
+ * Half-widths used by the Purgatory office beacon (tall internal mast).
+ * Index 0 = beacon course neighbours, then downward.
+ * Kept exported so purgatory.ts and tests stay in sync.
+ */
+export const BEACON_TIERS = [1, 1, 2, 3, 2] as const;
+
+export const BEACON_CROWN_Y = 121;
+export const BEACON_COLLAR = 5;
+
 export interface BeaconColours {
   /** Stained glass that sets the beam colour. */
   glass: BlockState;
@@ -63,6 +73,8 @@ export interface BeaconPlacement {
   baseY: number;
   /** Y of the beacon block itself. */
   beaconY: number;
+  /** Alias used by older tests that still say crownY. */
+  crownY: number;
   colours: BeaconColours;
 }
 
@@ -78,10 +90,17 @@ export function beaconMast(world: World, id: LandmarkId): BeaconPlacement {
 function measureBeacon(world: World, id: LandmarkId): BeaconPlacement {
   const { x, z } = LANDMARKS[id].center;
   const surface = world.surfaceAt(x, z);
-  // 5x5 netherite at surface, beacon one course above it.
   const baseY = Math.max(surface, 8);
   const beaconY = baseY + 1;
-  return { id, x, z, baseY, beaconY, colours: BEACON_COLOURS[id] };
+  return {
+    id,
+    x,
+    z,
+    baseY,
+    beaconY,
+    crownY: beaconY,
+    colours: BEACON_COLOURS[id],
+  };
 }
 
 /**
@@ -107,24 +126,19 @@ export function buildBeacons(world: World): BeaconPlacement[] {
 /**
  * One ground-level beacon:
  *
- *   baseY     solid 5x5 netherite (the layer that actually powers level 1)
- *   beaconY   the beacon itself, with coloured glass on the four sides
- *             for beam colour and sea lanterns on the corners for visibility
- *   above     clear air column so the beam is not blocked
+ *   baseY     solid 5x5 netherite (powers level 1)
+ *   beaconY   the beacon, coloured glass on edges, sea lanterns on corners
+ *   above     clear air column so the beam is never blocked
  */
 function buildOneBeacon(world: World, p: BeaconPlacement): void {
   const { x, z, baseY, beaconY, colours } = p;
 
-  // 5x5 solid netherite base — required for a working level-1 beacon.
   for (let dx = -2; dx <= 2; dx++) {
     for (let dz = -2; dz <= 2; dz++) {
       world.set(x + dx, baseY, z + dz, P.netheriteBlock);
     }
   }
 
-  // Beacon in the centre. Coloured glass on the edge midpoints sets the
-  // beam colour. Sea lanterns on the corners make the platform readable
-  // at night. Nothing is placed on top of the beacon itself.
   for (let dx = -1; dx <= 1; dx++) {
     for (let dz = -1; dz <= 1; dz++) {
       const middle = dx === 0 && dz === 0;
@@ -138,21 +152,15 @@ function buildOneBeacon(world: World, p: BeaconPlacement): void {
     }
   }
 
-  // Clear air column straight up so the beam is never blocked by canopy
-  // glass, spires, or anything else that may sit above the landmark.
   const top = Math.min(beaconY + BEAM_CLEARANCE, CONFIG.maxY - 1);
   for (let y = beaconY + 1; y <= top; y++) {
     world.set(x, y, z, AIR);
   }
 
-  // Protect the whole pad so later decoration cannot drop debris on it.
   world.protect(x, z, 3);
 }
 
-// Compatibility exports so existing tests / purgatory.ts still compile.
-export const BEACON_CROWN_Y = 121;
-export const BEACON_COLLAR = 1;
-export const BEACON_TIERS = [2] as const;
+/** Compatibility stub for older banding helpers. */
 export function beaconCourse(_colours: BeaconColours, _course: number): BlockState {
   return P.netheriteBlock;
 }
