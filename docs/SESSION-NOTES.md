@@ -1329,3 +1329,116 @@ reachability check and the beacon-pyramid test), `world.test.ts` and
 Full gate: typecheck clean, **111/111 tests**, palette OK, `pack OK`,
 `world OK (40 checks)`. Verified in the built `.mcworld`: 24 beacon blocks, iron
 pyramid tiers and netherite bases present in the decompressed `db/`.
+
+## The castle's undercroft, and the nether portal frame that does not exist
+
+The last four requests, in one sitting: an underground area for the Veil Castle ("eye style, same
+style of castle, make it big, **and make sure you hit no builds**"), a 3x3 of nether portal frame at
+the bottom of it laid out the way an end portal frame goes, glass and light in the Warden's arena,
+and beacons anchored to the landmark's own roof.
+
+### "Hit no builds" is the whole design constraint
+
+`buildVeilUndercroft` runs *after* `buildVeilCastle` and `buildPortalLobby`, so every block it writes
+is a subtraction from work that already exists. Three things own blocks below the surface:
+
+| what | where | lowest block |
+| --- | --- | --- |
+| the castle's ground plate (`pad`) | x -195..-127, z 92..174 | y46 |
+| the **causeway's arch piers** | x -208 and -200, z 130-136 | y ~20 |
+| the portal lobby | x -231..-211 | y18 |
+
+The first version cleared **y5 to y54 over 97x97** and called `setSurface(x, z, 5)` on every cell.
+It took the castle's floor out from under itself, cut the lobby's east half off, and told the height
+map the ground was at y5 - which is why `terrain > keeps every landmark on solid land` failed, and
+why the castle, the lobby and the forecourt tests failed with it. Nineteen tests, one cause.
+
+The shape that fixes it:
+
+* the footprint is **inset inside the castle's own pad** (x -193..-129, z 99..167) instead of
+  centred on `VEIL_COURT`, so every column it cuts has the castle's floor slab over it - and its
+  west edge stops six blocks short of the causeway's piers and twenty short of the lobby;
+* every write is capped at `UNDERCROFT.ceiling` = y45, one under the plate, and `excavate` no longer
+  touches the height map at all;
+* the **galleries** moved from `CX ± 40` to six in from each side wall. At `CX ± 40` they were at
+  x -219 and -139, which is inside the portal lobby;
+* the top hall's vault is **clipped** to the ceiling. A barrel vault rising to y57 went straight
+  through the castle's floor.
+
+Verified from the built world, not from the code: 41 holes in the castle's plate at y46 and not one
+more, zero columns whose surface moved, both causeway piers still solid at y40, the lobby's court
+still paved.
+
+### The descent, and why it is a straight run and not a switchback
+
+The undercroft has to be *reached*, so the great hall's own paving is opened and a flight runs down
+out of it into the top hall.
+
+The first attempt was a switchback: a flight down +Z, a landing, and a return flight in the same
+three columns. That does not work in a three-wide shaft, and the failure is silent - the return
+flight's headroom cut starts at `y + 1`, which on its first tread is exactly the landing's floor
+course, so **the landing is deleted course by course** and the middle of the stairs is a five-block
+hole. Three flights in one shaft also need a floor to cross between them, and the second flight's
+re-cut takes that floor out.
+
+What works is one straight run with a landing half way down, and the next flight **running back the
+other way in the same shaft**, so the bottom step of one *is* the top step of the one under it. Each
+step clears the blocks above itself up to the floor it starts from, which is what stops the slab
+roofing over a flight that runs downward from a floor level. Verified by BFS from the middle of the
+great hall: all three halls and a cell beside the portal frame are in the reachable set.
+
+### `minecraft:nether_portal_frame` does not exist in Bedrock
+
+The request was "at the bottom of it put an end portal, but instead of an end frame it's a nether
+portal frame, but it's like in the way an end frame would go". There is **no such block** in 1.26.51
+- `minecraft-data` does not have it and the palette validator rejects the name outright.
+
+So the ring is **crying obsidian**: what a nether portal is actually built from, in the Nether family,
+and a block the game knows. An end portal frame is a 3x3 ring of frame blocks lying *flat in the
+floor* with the portal in the middle, so that is the shape: the ring is in the floor plane, the
+centre cell carries `minecraft:portal` - the nether portal's own surface block, so it is a working
+portal and not a picture of one - and the two courses above it are air, which is what makes a nether
+portal two blocks tall. Standing the ring *on* the floor would be three blocks and a fence.
+
+The chamber is the middle of the deepest hall rather than a room below it, because the void starts at
+about y20 and there is nowhere below the deepest hall to put one.
+
+### Beacons: on the roof, and out of the canopy
+
+`beaconMast` reads the landmark's top out of the world, which is correct exactly once - after
+`buildBeacons` has run, the column it scans *is* the mast, so asking again returns a taller mast
+than the one that was built. The build now records what it built, per world, and the query answers
+from the record.
+
+The crowns then sit **under** the canopy band (a mast on a roof tops out around y64; the sheets are
+at y92-116), so every crown cuts a three-wide skylight up through the band. Three wide and not seven:
+the beam is one block, and a hole the width of the crown's own ring takes the silhouette off it and
+reads as a missing patch of sky.
+
+`MIN_BEACON_HEIGHT` went from 8 to 16. The crown's pyramid occupies the five courses under the
+beacon, so an eight-course mast has a three-course shaft with no netherite band and no accent in it -
+and the two accent halos, eight and twelve courses below the crown, fell off the bottom of the mast
+and into the building it was standing on.
+
+### The Warden's bowl: glazed slope, dark floor
+
+The arena's slope is glazed on purpose - it is a terrace of light you look down into. What it must
+not do is glaze the **sculk**. The bowl is a parabola, so the sculk disc runs a block or two past
+the glaze's inner radius, and those cells were being paved: 61 of the floor's sculk blocks, and the
+`NEGATIVE: no glazing reaches inside the bowl` tests were asserting the opposite of the request.
+`glazeArenaSlope` now skips any column whose floor is sculk, and the two negative tests measure the
+inner disc per column - a parabolic floor is a different height in every column - and additionally
+assert the slope outside it *is* glazed, so the dark centre is dark because of the contrast.
+
+### Tests
+
+Two stale suites rewritten (the beacon-crown and the two Warden's-bowl negatives), and the sky
+canopy / split tables / sky beacon suites moved to `sky.test.ts`: `world.test.ts` had grown past the
+size the editor can address, and the Warden arena suite sat in that unreachable tail.
+
+New `veil_undercroft.test.ts` (6 tests): underground, big, **reachable on foot from the great hall**,
+the 3x3 frame and its lit portal, an eye on all four walls of every hall, and `NEGATIVE: hits no
+builds`.
+
+Full gate: typecheck clean, **117/117 tests**, palette OK, `pack OK`, `world OK (40 checks)`,
+`.mcworld` 9.36 MB.

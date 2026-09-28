@@ -9,10 +9,11 @@
  * the same grey-black stone. From a spire you could see the Glassworks or you
  * could see nothing.
  *
- * So every landmark gets a mast: a slender, banded, *coloured* glass column
- * that rises out of the top of the building and punches up through the canopy
- * to a netherite crown at y121 - above every sheet in the sky, so it is the one
- * thing in the world that is never behind glass.
+ * So every landmark gets a mast: a slender, banded, *coloured* stained-glass
+ * column that stands on the landmark's own roof, carrying a lit beacon pyramid
+ * a few courses above the highest spire. The mast is short on purpose - it is a
+ * crown on a roof, not a tower beside the building - and every colour is a real
+ * stained glass so the crown reads as a colour and not as a grey lump.
  *
  * The crown is an actual **lit beacon block** standing on a real beacon
  * pyramid, with clear air above it: the request was for beacons *activated*,
@@ -37,35 +38,43 @@
  *    would be lost. So this pass is called *after* the canopy and a beacon is
  *    allowed to cut a hole through a sheet - which is also what a real mast
  *    standing under a glass roof would do.
- *
- * 2. **Every landmark gets a different *pair* of colours, not a different
+ * * 2. **Every landmark gets a different *pair* of colours, not a different
  *    colour.** There are sixteen stained glasses and twenty-three landmarks,
  *    so "each one its own colour" cannot be satisfied by the hue alone. Each
  *    beacon is a `main` glass with an `accent` band: sixteen hues, each used
  *    with two or three different accents, and `beaconColoursAreUnique` asserts
- *    that no two landmarks share a pair. The collar is always `accent`, so the
- *    silhouette alone is still recognisable.
+ *    that no two landmarks share a pair. The colour is always *stained glass* -
+ *    the mast is the stained glass, and the pyramid under the beacon is the
+ *    only part that is not, because that part has to be a valid beacon base
+ *    material or the beam never lights.
  *
- * 3. **The base is the building's own top, not the ground.** Anchoring at
- *    `surfaceAt(x, z) + 2` means a beacon on the Glassworks spire starts 40
- *    blocks higher than one on the village, which is right: the mast should
- *    read as *part of* the landmark, and a mast planted on the ground next to a
- *    tower would be shorter than the thing it is marking.
+ * 3. **The base is the building's own top, not the ground and not the sky.**
+ *    Anchoring at `surfaceAt(x, z) + 2` means a beacon on the Glassworks spire
+ *    starts 40 blocks higher than one on the village, which is right: the mast
+ *    should read as *part of* the landmark. It also means the mast is *short* -
+ *    a fixed eight courses above the roof it stands on, not a run up to a
+ *    single flat y121 for all twenty-three. Pinning every crown to one height
+ *    put them all in a line over the canopy, which is a skyline, not a set of
+ *    markers, and made a village beacon as tall as the Glassworks.
  */
-import { P, type BlockState } from "./blocks.ts";
+import { P, AIR, type BlockState } from "./blocks.ts";
 import { CONFIG } from "./config.ts";
 import { LANDMARKS, type LandmarkId } from "./layout.ts";
+import { CANOPY_BAND } from "./sky_canopy.ts";
 import type { World } from "./world.ts";
 
 /**
- * The top of the mast itself. The build ceiling is y=127 and the canopy's
- * highest sheet is y=116, so a crown at 121 is clear of the glass and still six
- * blocks inside the buffer.
+ * The tallest a crown may reach, whatever the landmark under it is doing.
  *
- * Nothing is placed *above* the crown: an active beacon draws its beam from
+ * The build ceiling is y=127, and the canopy's highest sheet is y=116, so this
+ * is the old flat 121 - kept only as a *cap*. The crowns themselves are placed
+ * on each landmark's own roof (see `beaconMast`); this number exists so a
+ * spire that already reaches the buffer cannot ask for a crown off the top of
+ * the world.
+ *
+ * Nothing is ever placed *above* a crown: an active beacon draws its beam from
  * the block's own position upwards, and anything on top of it - the old
- * glowstone flame - would cut the beam off one block above the glass. That is
- * the whole reason this number moved down from 123.
+ * glowstone flame - would cut the beam off one block long.
  */
 export const BEACON_CROWN_Y = 121;
 
@@ -109,8 +118,23 @@ export const BEACON_COLLAR = 5;
  */
 export const BEACON_TIERS = [1, 1, 2, 3, 2] as const;
 
-/** Shortest mast worth building. Below this the crown crowds the roofline. */
-export const MIN_BEACON_HEIGHT = 8;
+/**
+ * How far the crown sits above the landmark's own roof.
+ *
+ * Short on purpose: the mast used to run all the way to a fixed y121, which
+ * meant a fifty-block glass column standing next to a low village and the same
+ * column standing on the Glassworks spire - the mast, not the landmark, was
+ * what you could see, and the request was for a beacon *on the landmark*.
+ *
+ * Sixteen is the shortest run that is still a mast. The crown's own pyramid
+ * occupies the five courses under the beacon, so a mast has to be more than
+ * five courses long to have a shaft at all, and it has to be longer than nine
+ * to show a second netherite band - at eight the whole shaft was three courses
+ * of glass with no banding and no accent in it, and the two accent halos at
+ * eight and twelve courses below the crown fell off the bottom of the mast and
+ * into the building it was standing on.
+ */
+export const MIN_BEACON_HEIGHT = 16;
 
 /** How far above the landmark's own top the mast starts. */
 const BASE_CLEARANCE = 2;
@@ -208,6 +232,21 @@ export interface BeaconMast {
 }
 
 /**
+ * The masts that have been built, per world.
+ *
+ * `beaconMast` reads the landmark's top out of the world, which is correct
+ * exactly once: after `buildBeacons` has run, the column it scans *is* the
+ * mast, so asking again returns a taller mast than the one that was built and
+ * every assertion about where the crown sits is a assertion about a mast that
+ * does not exist. The build therefore records what it built, and the query
+ * answers from the record.
+ *
+ * Keyed by the world so two worlds in one process - which is what a test file
+ * does - never see each other's masts.
+ */
+const BUILT = new WeakMap<World, Map<LandmarkId, BeaconMast>>();
+
+/**
  * Where a landmark's mast runs.
  *
  * Split out from the build so it can be asserted directly: the failure mode
@@ -217,16 +256,34 @@ export interface BeaconMast {
  * so counting glass would pass them.
  */
 export function beaconMast(world: World, id: LandmarkId): BeaconMast {
+  const built = BUILT.get(world)?.get(id);
+  if (built) return built;
+  return measureMast(world, id);
+}
+
+/** The mast a landmark would get, measured off the world as it stands. */
+function measureMast(world: World, id: LandmarkId): BeaconMast {
   const { x, z } = LANDMARKS[id].center;
   // The landmark's own top, read out of the blocks rather than out of the
   // height map: `surfaceAt` is written by terrain and pads, so it reports the
   // ground a landmark was *padded* to and misses every tower above it. A mast
   // anchored to that would spear straight through the keep it is marking.
   const landmarkTop = Math.max(topSolidBelow(world, x, z, ANCHOR_CEILING), world.surfaceAt(x, z));
-  const baseY = Math.max(landmarkTop + BASE_CLEARANCE, 60);
-  // Push the crown up rather than down when the landmark is already tall: a
-  // short mast is the one outcome that makes the beacon useless.
-  const crownY = Math.max(BEACON_CROWN_Y, baseY + MIN_BEACON_HEIGHT);
+  // The mast stands *on the landmark*, not above the world.
+  //
+  // It used to be pinned to a single y121 for every mast, which put all
+  // twenty-three crowns in one flat line floating over the canopy - a beacon
+  // for the Glassworks looked identical to one for the village, and neither
+  // looked like it belonged to the thing it was marking. The reference has the
+  // pyramid sitting on the roof it belongs to, a few blocks proud of the
+  // highest spire, so that is what this does: the crown is the landmark's own
+  // top plus a short mast.
+  //
+  // The floor is the one thing that stays. A landmark whose top is already at
+  // the buffer would otherwise ask for a crown off the top of the world, so
+  // `crownY` is clamped into the build ceiling and `baseY` follows it down.
+  const baseY = Math.max(landmarkTop + BASE_CLEARANCE, 40);
+  const crownY = Math.min(baseY + MIN_BEACON_HEIGHT, CONFIG.maxY - BEACON_COLLAR - 1);
   return { id, x, z, baseY, crownY, colours: BEACON_COLOURS[id] };
 }
 
@@ -248,10 +305,13 @@ export function beaconCourse(colours: BeaconColours, course: number): BlockState
  */
 export function buildBeacons(world: World): BeaconMast[] {
   const built: BeaconMast[] = [];
+  const record = new Map<LandmarkId, BeaconMast>();
+  BUILT.set(world, record);
   for (const id of Object.keys(LANDMARKS) as LandmarkId[]) {
-    const mast = beaconMast(world, id);
+    const mast = measureMast(world, id);
     if (mast.crownY + 1 >= CONFIG.maxY) continue; // no room in the buffer
     buildBeacon(world, mast);
+    record.set(id, mast);
     built.push(mast);
   }
   return built;
@@ -329,6 +389,33 @@ export function buildBeacon(world: World, mast: BeaconMast): void {
         z + dz,
         dx === 0 && dz === 0 ? P.litBeacon : corner ? P.seaLantern : colours.accent,
       );
+    }
+  }
+
+  // The skylight: a clear column straight up out of the crown.
+  //
+  // A beacon's beam is a column of light, and a column of light behind a sheet
+  // of canopy glass is a smudge. The masts are short and stand on the landmark's
+  // own roof, so for anything but the tallest spire the crown is *under* the
+  // canopy band and its beam would be drawn across fifty blocks of glass. This
+  // is the hole that lets it out.
+  //
+  // Three wide, not seven: the beam is one block, and a hole the width of the
+  // crown's own decorative ring would take the silhouette off it and read as a
+  // missing patch of sky rather than as a shaft. It is cut after the canopy
+  // because the canopy is built before the beacons - see the header - and a
+  // hole cut in the other order is a hole with a sheet laid back over it.
+  for (let y = crownY + 1; y <= CONFIG.maxY - 1; y++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const block = world.get(x + dx, y, z + dz);
+        if (!block || block.name === AIR.name) continue;
+        // Only the sky comes out: anything solid here is a spire of the
+        // landmark's own, and the mast is on top of it, not inside it.
+        if (y <= CANOPY_BAND.ceiling && y >= CANOPY_BAND.floor - 8) {
+          world.set(x + dx, y, z + dz, AIR);
+        }
+      }
     }
   }
 

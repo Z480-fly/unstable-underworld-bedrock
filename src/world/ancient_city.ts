@@ -403,6 +403,23 @@ function wardenPit(world: World, cx: number, cz: number, rimY: number, seed: num
   sculkPatch(world, cx + 6, cz - 5, 9, seed + 1, 0.5);
   sculkPatch(world, cx - 7, cz + 6, 8, seed + 2, 0.45);
 
+  // Glass and light, which is what this arena was missing.
+  //
+  // The screenshot came back as a black hole: the bowl is 26 deep, the floor is
+  // sculk, and the only lamps in the whole build are eight posts on the rim
+  // walk and a sculk sensor every fourth step. Nothing about that is a lighting
+  // decision, it is an absence of one - and "the arena is meant to be dark" is
+  // not the same as "the player cannot see the arena".
+  //
+  // So the *slope* is glazed, in terraces, and lit. The bowl's own profile is a
+  // parabola, so each ring of the slope sits at its own y and the glazing has to
+  // be laid per column rather than at a fixed height - a fixed y would put half
+  // the panes inside the rock and half of them hanging in the air above the
+  // floor. The middle is deliberately left alone: the dark centre is the whole
+  // point of the arena, and glazing it would turn the Warden's pit into a
+  // lantern.
+  glazeArenaSlope(world, cx, cz, rimY, radius, seed);
+
   // the shrieker, ringed so it reads as the focal point. It is two blocks
   // tall, so the space above it is cleared too - a shrieker with rock on top
   // is a block the player can see but never activate.
@@ -433,6 +450,65 @@ function wardenPit(world: World, cx: number, cz: number, rimY: number, seed: num
     const z = Math.round(cz + Math.sin(a) * (radius - 1));
     const s = world.surfaceAt(x, z);
     if (s > 0) world.set(x, s + 1, z, P.sculkCatalyst);
+  }
+}
+
+/**
+ * Glaze and light the arena's slope, in terraces, leaving the floor dark.
+ *
+ * The bowl is a parabola 26 deep, so "the wall of the pit" is not one y - it is
+ * a slope, and the only honest way to glaze a slope is column by column. The
+ * inner fifth is left as bare sculk: that is the Warden's ground, and it is
+ * supposed to be the darkest thing in the build.
+ *
+ * Each terrace is a run of glass in the arena's cyan/green with a mullion every
+ * fourth block and a sea lantern every eighth, so the slope reads as a lit
+ * colonnade you are looking down into rather than as a grey funnel.
+ */
+function glazeArenaSlope(world: World, cx: number, cz: number, rimY: number, radius: number, seed: number): void {
+  const inner = radius * 0.28;
+  for (let dz = -radius; dz <= radius; dz++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      const d = Math.hypot(dx, dz);
+      // The dark centre: no glazing, no lamps, nothing.
+      if (d < inner || d > radius - 2) continue;
+      const x = cx + dx;
+      const z = cz + dz;
+      if (!world.inRealm(x, z)) continue;
+      const s = world.surfaceAt(x, z);
+      if (s <= 0) continue;
+      // Sculk is not a floor that gets paved over. The Warden's ground is the
+      // one surface in this build that is meant to stay dark, and the inner
+      // skip below is only a *radius* - the bowl is a parabola, so the sculk
+      // disc runs a block or two past it in places, and glazing those blocks
+      // put bright glass in the middle of the dark centre and ate 60 of the
+      // floor's sculk on the way past.
+      if (world.get(x, s, z)?.name === P.sculk.name) continue;
+      // Terrace banding: every course of the slope is its own band of colour,
+      // and the band steps as the parabola does, so the slope is legible as
+      // steps from the rim walk even before you are in it.
+      const band = Math.floor((rimY - s) / 4) % 3;
+      const glass = band === 0 ? P.cyanGlass : band === 1 ? P.greenGlass : P.limeGlass;
+      const mullion = (Math.round(dx) + Math.round(dz)) % 4 === 0;
+      world.set(x, s, z, mullion ? P.chiseledDeepslate : prismAt(CITY_GLAZING, x, s, z, seed));
+      // A pane standing on the terrace, so the slope is glazed in the vertical
+      // as well as the horizontal - from the rim you see a wall of light.
+      if (!mullion && (Math.round(dx) * 3 + Math.round(dz) * 5) % 7 === 0) {
+        world.set(x, s + 1, z, glass);
+      }
+    }
+  }
+  // Lamps down the slope on the eight cardinal and diagonal lines, one course
+  // above each terrace floor. Bright enough to navigate by, spaced far enough
+  // apart that the middle of the bowl is still the dark part.
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    for (let r = inner + 2; r < radius - 3; r += 4) {
+      const x = Math.round(cx + Math.cos(a) * r);
+      const z = Math.round(cz + Math.sin(a) * r);
+      const s = world.surfaceAt(x, z);
+      if (s > 0) world.set(x, s + 1, z, P.seaLantern);
+    }
   }
 }
 

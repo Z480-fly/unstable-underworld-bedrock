@@ -85,7 +85,7 @@ roughly 26 blocks thick and tapers into nothing at its edges. North is `-Z`, eas
 | **The Ruins** | `40, -60` | Broken viaduct, collapsed arches, fallen columns, a single intact obelisk. |
 | **The Graveyard** | `-58, -78` | Grave rows, a ruined chapel, a crypt stair down to a lit burial chamber, dead trees. |
 | **The Nether Portal Lobby** | `-221, 133` | The walled green-stone court of **twenty** obsidian portal frames set into its long walls, entered through a great dark-oak door in a polished-andesite frame, gold ore glinting in the tuff. Re-sited to the coordinates in the reference screenshot; the causeway east from its door is the Veil Castle's approach. |
-| **The Veil Castle** | `-179, 133` | The one pale building in the Underworld: quartz and sandstone, blue and teal roofs, a drum and dome that push up into the canopy band, green stained-glass **eyes** over the great hall and flat in the plaza, and a purple carpet running the length of the causeway, through the gate and down the hall to the dais. Furnished throughout - pews, a throne, a library in each wing, a compass-rose rotunda under the dome. Sited on the paved plaza in the placement screenshot. |
+| **The Veil Castle** | `-179, 133` | The one pale building in the Underworld: quartz and sandstone, blue and teal roofs, a drum and dome that push up into the canopy band, green stained-glass **eyes** over the great hall and flat in the plaza, and a purple carpet running the length of the causeway, through the gate and down the hall to the dais. Furnished throughout - pews, a throne, a library in each wing, a compass-rose rotunda under the dome. Sited on the paved plaza in the placement screenshot. Under it, cut into the rock: a three-hall **undercroft** with the same eyes, the same mandala vaults and a stair down out of the great hall, ending at a 3x3 of nether portal frame laid flat in the floor the way an end portal frame goes. |
 | **The Citadel** | `-158, 40` | The great library: three floors of shelves around a domed atrium open to the dark sky, and the exit stairwell with its ladder and broken bedrock. |
 | **The Pit / Tomb of the Mage of the Deep** | `-158, -70` | Statue-ringed pit with a spiral ramp, sculk tomb with sensors and shriekers, muffled corridors out, and the lava-trap corridor on the surface. |
 | **The Void Castles** | `-78…-102, 36…42` | Three floating castle islands in the western gulf, each holding an escape room (redstone-lamp floor, flooded maze, copper-bulb and slime floor), linked only by **glass bridges**. |
@@ -186,6 +186,27 @@ straight from screenshots:
   door, and two laid flat, one in the forecourt paving and one on the rotunda dais looking up into the
   dome. A circle in a stone ring is a rose window; a circle with a pupil is a face, and a test pins the
   lid line shut at the corners so the difference cannot regress.
+* **The undercroft** - "make an underground area for the castle, eye style, same style of castle, make
+  it big, and make sure you hit no builds". Three halls, 64 x 69 of floor, cut into the rock *under* the
+  castle and reached by a switchback stair opened out of the great hall's own paving: the same
+  masonry, the same purple carpet, the same colonnades, the same barrel-vaulted mandalas and an eye on
+  all four walls of every hall. The bottom of it carries the last thing the request asked for - a 3x3
+  ring of **nether portal frame laid flat in the floor the way an end portal frame goes**, with a lit
+  `minecraft:portal` standing in the middle of it, bedded into a compass of the castle's own glass
+  under the great eye on the back wall. Bedrock 1.26.51 has no `minecraft:nether_portal_frame` block,
+  so the ring is crying obsidian: what a nether portal is actually built from.
+
+  "Hit no builds" is the constraint that shapes every number in it, and it is asserted rather than
+  assumed. The undercroft is built *after* the surface castle and the portal lobby, so everything it
+  writes is a subtraction from work that already exists. It is therefore inset inside the castle's own
+  ground plate (so the castle's floor is its ceiling), stopped short of the causeway's arch piers at
+  x -208 and -200 - the one piece of the castle that reaches *below* its own floor - and stopped short
+  of the portal lobby at x -211, whose substructure reaches y18. It never writes a block above y45, and
+  it never touches the height map: the first version cleared y5 to y54 over 97x97 and called
+  `setSurface(x, z, 5)` on every cell, which took the castle's floor out from under itself, cut the
+  lobby in half, and told the height map the castle was standing on air. A test now counts the holes in
+  the castle's plate (41, all of them the stair), the columns whose surface moved, the arch piers, and
+  the lobby's own paving.
 * **The Nether Portal Lobby** (`-221, 133`) - re-sited from the old blackstone plaza at
   `-158, 140` to the coordinates in the reference screenshot (`Position: -219, 45, 125`) and re-faced
   to match it: a walled court of green deepslate and tuff with gold ore in the stone, the **twenty**
@@ -196,10 +217,12 @@ straight from screenshots:
 ### Sky beacons
 
 Every landmark has a **colour beacon**: a slender, banded mast of stained glass on a netherite spine
-that rises out of the top of the building and punches up through the canopy to a crown at y121, above
-every sheet in the sky. It is the one thing in the world that is never behind glass, which is the point
-- the Underworld is a near-flat grey plate under a sheet of overlapping glass, and before this there was
-no way to tell where you were from the air.
+that stands **on the landmark's own roof** and carries a lit crown sixteen courses above it. The masts
+are deliberately short - the crown is a mark on a roof, not a tower beside the building - and the beams
+still have to be seen from the air, so every crown cuts a three-wide **skylight** up through the canopy
+band above it. It is the one thing in the world that is never behind glass, which is the point - the
+Underworld is a near-flat grey plate under a sheet of overlapping glass, and before this there was no
+way to tell where you were from the air.
 
 The crown is a real `minecraft:beacon` block on a real **beacon pyramid**: a solid 5x5 of netherite
 with a 3x3 of iron above it, and two decorative accent rings below that. The pyramid is the whole trick.
@@ -210,16 +233,20 @@ level 1 needs a complete 5x5 of base material. The accent is kept strictly off t
 tiers for the same reason: a single pane of glass in the middle of the base voids it, and a test asserts
 all 25 blocks of every base by name.
 
-The crown sits at y121 rather than y123 with nothing on top of it, because an active beacon draws its
-beam from its own block upward and anything above it - the glowstone flame that used to be there - cuts
-the beam off one block long. A test fails if any crown has a block over it.
+The crown stands on its own landmark's roof and not at a single flat y121, because an active beacon
+draws its beam from its own block upward and anything above it - the glowstone flame that used to be
+there - cuts the beam off one block long. A test fails if any crown has a block over it, and a second
+one fails if any sheet of canopy is left across a beam. A third asserts no mast is anchored in the sky
+at all, which is the failure the fronds cause: `glassSky` hangs green fronds as far down as y84, so a
+mast anchored by "the highest block in this column" finds a frond in every landmark's centre column at
+once and the whole world grows a mast hanging in the canopy with nothing under it.
 
 There are sixteen stained glasses and twenty-three landmarks, so each beacon is a `main` colour with an
 `accent` band and every *pair* is unique; `bun test` asserts that no two landmarks share one. The
 beacons run **after** the canopy rather than before it - a mast drawn first would have a sheet of sky
-glass land on top of it - and they anchor to the landmark's own structure, not to the highest block in
-the column, because the canopy hangs green fronds as far down as y84 and a naive scan puts every mast
-in the world on a piece of sky.
+glass land on top of it, and the skylight cut has to be cut *after* the sheet it goes through. They
+anchor to the landmark's own structure rather than to the height map, which reports the ground a
+landmark was *padded* to and misses every tower above it.
 
 Purgatory gets its own, built inside the transplant rather than in `beacons.ts`: it is a 250-block
 tower with no exterior, so a mast in the sky would be useless. Instead a green glass column stands in
@@ -367,7 +394,7 @@ bun install
 bun run build:map        # generate dist/*.mcworld + docs/map-preview.jpg  (~5 s)
 bun run inspect          # read the world back: keys, subchunk round-trip, level.dat, zip
 bun run typecheck        # tsc -b --noEmit
-bun test                 # 99 tests: serializer, zip, metadata, palette, terrain, landmarks
+bun test                 # 117 tests: serializer, zip, metadata, palette, terrain, landmarks
 bun run validate         # every block state vs Bedrock 1.26.51
 bun run map              # ASCII map of the realm for layout checks
 bun run audit            # per-landmark audit: did each one actually build something?
@@ -434,8 +461,9 @@ Verified programmatically on every build:
   subchunk palette;
 * terrain generation is deterministic, every landmark lands on solid ground, and every one of the
   twenty-three landmarks places its signature geometry (`bun run audit` prints the counts);
-* every landmark has a sky beacon, no two beacons share a colour pair, and every crown stands above
-  the canopy rather than behind it;
+* every landmark has a sky beacon, no two beacons share a colour pair, every crown stands on its own
+  landmark's roof, and every one of them has cut a clear column up through the canopy band so no beam
+  is drawn across a sheet;
 * every beacon stands on a **complete 5x5 of valid base material** with three clear courses above it,
   by name rather than by counting solid blocks - `power_level` is only a cache, and a pyramid the game
   recomputes to zero is a grey block in a file that looks perfect;
@@ -443,8 +471,12 @@ Verified programmatically on every build:
   both galleries included;
 * the Veil Castle's purple approach is one unbroken 55-block run from the causeway to the hall, and
   the castle's quartz never reaches into the portal court next door;
-* the Warden's bowl contains no glazing at all, and still has its sculk, its catalyst rim and its
-  disarmed shrieker - the arena's plate is glazed, the hole is not;
+* the castle's **undercroft** is walked, not counted: a BFS from the middle of the great hall has to
+  reach all three halls and a cell beside the portal frame, and a separate negative test asserts that
+  the undercroft removed no block of the castle, the causeway or the portal lobby;
+* the Warden's bowl is glazed on its slope and dark on its own ground - the inner disc carries no pane
+  anywhere on its floor, and still has its sculk, its catalyst rim and its disarmed shrieker - the
+  arena's plate is glazed, the hole is not;
 * the plate is actually torn: 52 columns open through it into the void, the rim hangs masonry into
   the void beside it, and the outer band of the plate carries the same density of ruin as the middle
   (all three are asserted in `bun test`, because all three were quietly false before);

@@ -210,6 +210,11 @@ export const P = {
   endPortalFrame: bs("minecraft:end_portal_frame", { direction: 0, end_portal_eye_bit: false }),
   endPortalFrameEye: bs("minecraft:end_portal_frame", { direction: 0, end_portal_eye_bit: true }),
   endPortal: bs("minecraft:end_portal"),
+  // There is no `minecraft:nether_portal_frame` in Bedrock - the block does not
+  // exist in 1.26.51, and the palette validator rejects the name. The Veil
+  // Castle's undercroft lays its 3x3 end-portal-frame pattern in crying
+  // obsidian instead, which is what a nether portal is actually built from; see
+  // `PORTAL_FRAME` in `veil_undercroft.ts`.
   endGateway: bs("minecraft:end_gateway"),
   chorusPlant: bs("minecraft:chorus_plant"),
   // Bedrock's chorus_flower and respawn_anchor have no `age`/`charges` states

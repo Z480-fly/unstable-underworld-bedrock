@@ -47,7 +47,14 @@ const CARPET_EDGE: BlockState = P.magentaConcrete;
 const ROUNDEL: BlockState[] = [P.greenGlass, P.limeGlass, P.cyanGlass, P.greenGlass];
 
 /** Plaza level. Everything is measured up from here. */
-const LEVEL = 46;
+/**
+ * The ground plate every part of the castle stands on.
+ *
+ * Exported because the undercroft has to know where the bottom of the castle
+ * is: it is cut into the rock *under* this course and may not write a single
+ * block at or above it.
+ */
+export const LEVEL = 46;
 
 /** The forecourt centre, from the placement screenshot. */
 export const VEIL_COURT = { x: -179, z: 133 } as const;

@@ -29,6 +29,7 @@ import { buildSplice } from "./splice.ts";
 import { buildAncientCity, buildWardenArena } from "./ancient_city.ts";
 import { buildSkyCanopy } from "./sky_canopy.ts";
 import { buildVeilCastle } from "./veil_castle.ts";
+import { buildVeilUndercroft } from "./veil_undercroft.ts";
 import { buildBeacons } from "./beacons.ts";
 
 export function buildAllAreas(world: World): void {
@@ -55,6 +56,12 @@ export function buildAllAreas(world: World): void {
   buildWardenArena(world);
   buildAncientCity(world);
   buildVeilCastle(world);
+  // The undercroft, straight after the castle it belongs to and well before the
+  // canopy. It carves its own hole out of the rock under the plaza, so it has to
+  // run after the surface castle has finished building (otherwise it would cut
+  // the castle's foundations out from under it) and before anything reads the
+  // surface as final.
+  buildVeilUndercroft(world);
   // The canopy is the last word in the sky over the *landmarks*, so nothing
   // that runs before it can put a roof through a sheet. It hangs at y92-116,
   // above every landmark, so it cannot fight the ground either.
