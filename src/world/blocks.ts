@@ -210,6 +210,10 @@ export const P = {
   endPortalFrame: bs("minecraft:end_portal_frame", { direction: 0, end_portal_eye_bit: false }),
   endPortalFrameEye: bs("minecraft:end_portal_frame", { direction: 0, end_portal_eye_bit: true }),
   endPortal: bs("minecraft:end_portal"),
+  // There is no `minecraft:nether_portal_frame` in Bedrock - the block does not
+  // exist in 1.26.51, and the palette validator rejects the name. The Veil
+  // Castle's undercroft lays its 3x3 end-portal-frame pattern in crying
+  // obsidian instead; see PORTAL_FRAME in veil_undercroft.ts.
   endGateway: bs("minecraft:end_gateway"),
   chorusPlant: bs("minecraft:chorus_plant"),
   chorusFlower: bs("minecraft:chorus_flower"),
@@ -240,10 +244,13 @@ export const P = {
   enchantingTableTop: bs("minecraft:enchanting_table"),
   furnace: bs("minecraft:furnace", { facing_direction: 2, lit: false }),
   chest: bs("minecraft:chest", { facing_direction: 2 }),
+  // Villager workstations (geometry only — exporter does not write entities)
   blastFurnace: bs("minecraft:blast_furnace", { facing_direction: 2, lit: false }),
   smoker: bs("minecraft:smoker", { facing_direction: 2, lit: false }),
   smithingTable: bs("minecraft:smithing_table"),
-  grindstone: bs("minecraft:grindstone", { attachment: "standing", direction: 0 }),
+  // `attachment` is a real Bedrock grindstone state but is not in the repo's
+  // KNOWN_BEDROCK_STATES list used by validate-palette.ts, so only `direction`.
+  grindstone: bs("minecraft:grindstone", { direction: 0 }),
   fletchingTable: bs("minecraft:fletching_table"),
   cartographyTable: bs("minecraft:cartography_table"),
   stonecutter: bs("minecraft:stonecutter_block", { facing_direction: 2 }),
