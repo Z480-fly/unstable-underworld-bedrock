@@ -29,6 +29,7 @@ import { buildSplice } from "./splice.ts";
 import { buildAncientCity, buildWardenArena } from "./ancient_city.ts";
 import { buildSkyCanopy } from "./sky_canopy.ts";
 import { buildVeilCastle } from "./veil_castle.ts";
+import { buildVeilCastleInterior } from "./veil_castle_interior.ts";
 import { buildVeilUndercroft } from "./veil_undercroft.ts";
 import { buildBeacons } from "./beacons.ts";
 
@@ -56,6 +57,9 @@ export function buildAllAreas(world: World): void {
   buildWardenArena(world);
   buildAncientCity(world);
   buildVeilCastle(world);
+  // Surface interior enrichment (stalls, armory, kitchen…). Blocks only —
+  // this exporter cannot write villager entities. See veil_castle_interior.ts.
+  buildVeilCastleInterior(world);
   // The undercroft, straight after the castle it belongs to and well before the
   // canopy. It carves its own hole out of the rock under the plaza, so it has to
   // run after the surface castle has finished building (otherwise it would cut
@@ -98,4 +102,5 @@ export { buildSplice } from "./splice.ts";
 export { buildAncientCity, buildWardenArena } from "./ancient_city.ts";
 export { buildSkyCanopy, canopyCoverage, CANOPY_BAND } from "./sky_canopy.ts";
 export { buildVeilCastle, VEIL_COURT } from "./veil_castle.ts";
+export { buildVeilCastleInterior } from "./veil_castle_interior.ts";
 export { buildBeacons, beaconMast, BEACON_COLOURS, BEACON_CROWN_Y } from "./beacons.ts";
